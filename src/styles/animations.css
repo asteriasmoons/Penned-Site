@@ -1,0 +1,592 @@
+/* ==========================================================
+   PENNED — ANIMATION SYSTEM
+   File: src/styles/animations.css
+
+   Mobile-First
+   Performance-Conscious
+   Reduced-Motion Accessible
+   ========================================================== */
+
+
+/* ==========================================================
+   ANIMATION VARIABLES
+   ========================================================== */
+
+:root {
+  --animation-fast: 200ms;
+  --animation-normal: 400ms;
+  --animation-slow: 700ms;
+  --animation-slower: 1000ms;
+
+  --animation-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --animation-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --animation-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --animation-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --animation-distance: 20px;
+}
+
+
+/* ==========================================================
+   FADE ANIMATIONS
+   ========================================================== */
+
+@keyframes penned-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes penned-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+.animate-fade-in {
+  animation:
+    penned-fade-in
+    var(--animation-slow)
+    var(--animation-ease)
+    both;
+}
+
+.animate-fade-out {
+  animation:
+    penned-fade-out
+    var(--animation-normal)
+    var(--animation-ease)
+    both;
+}
+
+
+/* ==========================================================
+   SLIDE ANIMATIONS
+   ========================================================== */
+
+@keyframes penned-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(var(--animation-distance));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes penned-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--animation-distance) * -1));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes penned-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(var(--animation-distance));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes penned-slide-right {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--animation-distance) * -1));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-up {
+  animation:
+    penned-slide-up
+    var(--animation-slow)
+    var(--animation-ease)
+    both;
+}
+
+.animate-slide-down {
+  animation:
+    penned-slide-down
+    var(--animation-slow)
+    var(--animation-ease)
+    both;
+}
+
+.animate-slide-left {
+  animation:
+    penned-slide-left
+    var(--animation-slow)
+    var(--animation-ease)
+    both;
+}
+
+.animate-slide-right {
+  animation:
+    penned-slide-right
+    var(--animation-slow)
+    var(--animation-ease)
+    both;
+}
+
+
+/* ==========================================================
+   SCALE ANIMATIONS
+   ========================================================== */
+
+@keyframes penned-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes penned-scale-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+.animate-scale-in {
+  animation:
+    penned-scale-in
+    var(--animation-slow)
+    var(--animation-ease)
+    both;
+}
+
+.animate-scale-out {
+  animation:
+    penned-scale-out
+    var(--animation-normal)
+    var(--animation-ease)
+    both;
+}
+
+
+/* ==========================================================
+   FLOATING PRODUCT SHOWCASE
+   ========================================================== */
+
+@keyframes penned-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-float {
+  animation:
+    penned-float
+    6s
+    ease-in-out
+    infinite;
+}
+
+
+/* ==========================================================
+   SUBTLE PULSE
+   ========================================================== */
+
+@keyframes penned-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.65;
+  }
+}
+
+.animate-pulse {
+  animation:
+    penned-pulse
+    3s
+    ease-in-out
+    infinite;
+}
+
+
+/* ==========================================================
+   PURPLE GLOW
+   ========================================================== */
+
+@keyframes penned-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 rgba(121, 66, 255, 0);
+  }
+
+  50% {
+    box-shadow:
+      0 0 28px rgba(121, 66, 255, 0.2);
+  }
+}
+
+.animate-glow {
+  animation:
+    penned-glow
+    4s
+    ease-in-out
+    infinite;
+}
+
+
+/* ==========================================================
+   GRADIENT MOVEMENT
+   ========================================================== */
+
+@keyframes penned-gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+
+  animation:
+    penned-gradient-shift
+    8s
+    ease-in-out
+    infinite;
+}
+
+
+/* ==========================================================
+   SCROLL REVEAL SYSTEM
+   ========================================================== */
+
+/*
+   Elements using data-reveal remain visible by default.
+
+   JavaScript can add .reveal-ready after registering
+   an IntersectionObserver.
+
+   When an element enters the viewport, JavaScript
+   adds .is-visible to trigger the animation.
+
+   This prevents content from disappearing when
+   JavaScript is unavailable.
+*/
+
+[data-reveal] {
+  opacity: 1;
+  transform: none;
+}
+
+[data-reveal].reveal-ready {
+  opacity: 0;
+  transform: translateY(20px);
+
+  transition:
+    opacity var(--animation-slow) var(--animation-ease),
+    transform var(--animation-slow) var(--animation-ease);
+}
+
+[data-reveal].reveal-ready.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+
+/* ==========================================================
+   SCROLL REVEAL DIRECTIONS
+   ========================================================== */
+
+[data-reveal="fade"].reveal-ready {
+  transform: none;
+}
+
+[data-reveal="up"].reveal-ready {
+  transform: translateY(20px);
+}
+
+[data-reveal="down"].reveal-ready {
+  transform: translateY(-20px);
+}
+
+[data-reveal="left"].reveal-ready {
+  transform: translateX(20px);
+}
+
+[data-reveal="right"].reveal-ready {
+  transform: translateX(-20px);
+}
+
+[data-reveal="scale"].reveal-ready {
+  transform: scale(0.96);
+}
+
+[data-reveal].reveal-ready.is-visible {
+  transform: none;
+}
+
+
+/* ==========================================================
+   STAGGERED ANIMATIONS
+   ========================================================== */
+
+[data-delay="100"] {
+  animation-delay: 100ms;
+  transition-delay: 100ms;
+}
+
+[data-delay="200"] {
+  animation-delay: 200ms;
+  transition-delay: 200ms;
+}
+
+[data-delay="300"] {
+  animation-delay: 300ms;
+  transition-delay: 300ms;
+}
+
+[data-delay="400"] {
+  animation-delay: 400ms;
+  transition-delay: 400ms;
+}
+
+[data-delay="500"] {
+  animation-delay: 500ms;
+  transition-delay: 500ms;
+}
+
+[data-delay="600"] {
+  animation-delay: 600ms;
+  transition-delay: 600ms;
+}
+
+
+/* ==========================================================
+   INTERACTIVE HOVER EFFECTS
+   ========================================================== */
+
+.hover-lift {
+  transition:
+    transform var(--animation-normal) var(--animation-ease),
+    box-shadow var(--animation-normal) var(--animation-ease);
+}
+
+.hover-scale {
+  transition:
+    transform var(--animation-normal) var(--animation-ease);
+}
+
+.hover-glow {
+  transition:
+    box-shadow var(--animation-normal) var(--animation-ease);
+}
+
+
+/*
+   Hover effects are enabled only on devices
+   with a genuine hover-capable pointer.
+*/
+
+@media (hover: hover) and (pointer: fine) {
+
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .hover-scale:hover {
+    transform: scale(1.025);
+  }
+
+  .hover-glow:hover {
+    box-shadow: var(--shadow-purple);
+  }
+
+}
+
+
+/* ==========================================================
+   INTERACTIVE PRESS EFFECTS
+   ========================================================== */
+
+.press-scale {
+  transition:
+    transform var(--animation-fast) var(--animation-ease);
+}
+
+.press-scale:active {
+  transform: scale(0.97);
+}
+
+
+/* ==========================================================
+   UNDERLINE ANIMATION
+   ========================================================== */
+
+.link-underline {
+  position: relative;
+  display: inline-block;
+}
+
+.link-underline::after {
+  content: "";
+
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+
+  width: 100%;
+  height: 2px;
+
+  background: var(--color-purple-light);
+
+  transform: scaleX(0);
+  transform-origin: left;
+
+  transition:
+    transform var(--animation-normal) var(--animation-ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+
+  .link-underline:hover::after {
+    transform: scaleX(1);
+  }
+
+}
+
+.link-underline:focus-visible::after {
+  transform: scaleX(1);
+}
+
+
+/* ==========================================================
+   TABLET — 768px+
+   ========================================================== */
+
+@media (min-width: 768px) {
+
+  :root {
+    --animation-distance: 28px;
+  }
+
+  [data-reveal="up"].reveal-ready {
+    transform: translateY(28px);
+  }
+
+  [data-reveal="down"].reveal-ready {
+    transform: translateY(-28px);
+  }
+
+  [data-reveal="left"].reveal-ready {
+    transform: translateX(28px);
+  }
+
+  [data-reveal="right"].reveal-ready {
+    transform: translateX(-28px);
+  }
+
+}
+
+
+/* ==========================================================
+   DESKTOP — 1024px+
+   ========================================================== */
+
+@media (min-width: 1024px) {
+
+  :root {
+    --animation-distance: 36px;
+  }
+
+  [data-reveal="up"].reveal-ready {
+    transform: translateY(36px);
+  }
+
+  [data-reveal="down"].reveal-ready {
+    transform: translateY(-36px);
+  }
+
+  [data-reveal="left"].reveal-ready {
+    transform: translateX(36px);
+  }
+
+  [data-reveal="right"].reveal-ready {
+    transform: translateX(-36px);
+  }
+
+}
+
+
+/* ==========================================================
+   REDUCED MOTION ACCESSIBILITY
+   ========================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+
+    scroll-behavior: auto !important;
+  }
+
+  [data-reveal],
+  [data-reveal].reveal-ready,
+  [data-reveal].reveal-ready.is-visible {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+}

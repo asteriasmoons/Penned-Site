@@ -1,0 +1,400 @@
+/* ==========================================================
+   PENNED — TYPOGRAPHY SYSTEM
+   File: src/styles/typography.css
+
+   Mobile-first responsive typography.
+   Font: Nunito Black (900)
+   ========================================================== */
+
+
+/* ==========================================================
+   FONT IMPORT
+   ========================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=Nunito:wght@900&display=swap");
+
+
+/* ==========================================================
+   BASE TYPOGRAPHY
+   ========================================================== */
+
+html {
+  font-family: var(--font-family);
+  font-weight: 900;
+
+  font-synthesis: none;
+
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-family);
+  font-weight: 900;
+
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+
+  color: var(--text-primary);
+
+  overflow-wrap: break-word;
+}
+
+
+/* ==========================================================
+   HEADINGS
+   ========================================================== */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-family);
+  font-weight: 900;
+
+  line-height: var(--line-height-tight);
+
+  letter-spacing: -0.035em;
+
+  color: var(--text-primary);
+
+  margin: 0;
+
+  text-wrap: balance;
+}
+
+
+/* ==========================================================
+   HEADING SIZES — MOBILE FIRST
+   ========================================================== */
+
+h1 {
+  font-size: clamp(2.5rem, 9vw, 5.5rem);
+  letter-spacing: -0.055em;
+}
+
+h2 {
+  font-size: clamp(2rem, 7vw, 4rem);
+  letter-spacing: -0.045em;
+}
+
+h3 {
+  font-size: clamp(1.5rem, 5vw, 2.75rem);
+}
+
+h4 {
+  font-size: clamp(1.25rem, 4vw, 2rem);
+}
+
+h5 {
+  font-size: clamp(1.125rem, 3.5vw, 1.5rem);
+}
+
+h6 {
+  font-size: clamp(1rem, 3vw, 1.25rem);
+}
+
+
+/* ==========================================================
+   PARAGRAPHS
+   ========================================================== */
+
+p {
+  font-family: var(--font-family);
+  font-weight: 900;
+
+  font-size: clamp(0.9375rem, 2.5vw, 1.125rem);
+
+  line-height: 1.65;
+
+  letter-spacing: -0.01em;
+
+  margin: 0;
+
+  color: var(--text-secondary);
+
+  text-wrap: pretty;
+}
+
+
+/* ==========================================================
+   LINKS
+   ========================================================== */
+
+a {
+  font-family: inherit;
+  font-weight: 900;
+
+  color: inherit;
+
+  text-decoration: none;
+
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-purple-light);
+}
+
+
+/* ==========================================================
+   BUTTON TYPOGRAPHY
+   ========================================================== */
+
+button,
+.button,
+input[type="button"],
+input[type="submit"] {
+  font-family: var(--font-family);
+  font-weight: 900;
+
+  font-size: 0.9375rem;
+
+  line-height: 1.2;
+
+  letter-spacing: -0.015em;
+}
+
+
+/* ==========================================================
+   FORM TYPOGRAPHY
+   ========================================================== */
+
+input,
+textarea,
+select,
+label {
+  font-family: var(--font-family);
+  font-weight: 900;
+
+  font-size: 1rem;
+
+  line-height: 1.5;
+}
+
+
+/* ==========================================================
+   LIST TYPOGRAPHY
+   ========================================================== */
+
+ul,
+ol,
+li {
+  font-family: var(--font-family);
+  font-weight: 900;
+
+  line-height: 1.65;
+}
+
+
+/* ==========================================================
+   SMALL TEXT
+   ========================================================== */
+
+small,
+.text-small {
+  font-family: var(--font-family);
+  font-weight: 900;
+
+  font-size: 0.8125rem;
+
+  line-height: 1.5;
+}
+
+
+/* ==========================================================
+   DISPLAY TYPOGRAPHY
+   ========================================================== */
+
+.text-display {
+  font-family: var(--font-family);
+  font-weight: 900;
+
+  font-size: clamp(3rem, 11vw, 7rem);
+
+  line-height: 1.05;
+
+  letter-spacing: -0.065em;
+
+  text-wrap: balance;
+}
+
+
+/* ==========================================================
+   SECTION TITLES
+   ========================================================== */
+
+.text-section-title {
+  font-family: var(--font-family);
+  font-weight: 900;
+
+  font-size: clamp(2rem, 7vw, 4.5rem);
+
+  line-height: 1.1;
+
+  letter-spacing: -0.045em;
+
+  text-wrap: balance;
+}
+
+
+/* ==========================================================
+   SECTION DESCRIPTIONS
+   ========================================================== */
+
+.text-section-description {
+  font-family: var(--font-family);
+  font-weight: 900;
+
+  font-size: clamp(1rem, 2.5vw, 1.25rem);
+
+  line-height: 1.7;
+
+  color: var(--text-secondary);
+
+  max-width: 65ch;
+}
+
+
+/* ==========================================================
+   EYEBROW TEXT
+   ========================================================== */
+
+.text-eyebrow {
+  font-family: var(--font-family);
+  font-weight: 900;
+
+  font-size: 0.75rem;
+
+  line-height: 1.4;
+
+  letter-spacing: 0.1em;
+
+  text-transform: uppercase;
+
+  color: var(--color-purple-light);
+}
+
+
+/* ==========================================================
+   ACCENT TEXT
+   ========================================================== */
+
+.text-accent {
+  color: var(--color-purple-light);
+}
+
+.text-gradient {
+  background: var(--gradient-primary);
+
+  -webkit-background-clip: text;
+  background-clip: text;
+
+  -webkit-text-fill-color: transparent;
+
+  color: var(--color-purple-primary);
+}
+
+
+/* ==========================================================
+   MUTED TEXT
+   ========================================================== */
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+
+/* ==========================================================
+   TEXT ALIGNMENT
+   ========================================================== */
+
+.text-center {
+  text-align: center;
+}
+
+.text-left {
+  text-align: left;
+}
+
+.text-right {
+  text-align: right;
+}
+
+
+/* ==========================================================
+   TABLET — 768px+
+   ========================================================== */
+
+@media (min-width: 768px) {
+
+  body {
+    font-size: 1.0625rem;
+  }
+
+  .text-eyebrow {
+    font-size: 0.8125rem;
+  }
+
+  button,
+  .button {
+    font-size: 1rem;
+  }
+
+}
+
+
+/* ==========================================================
+   DESKTOP — 1024px+
+   ========================================================== */
+
+@media (min-width: 1024px) {
+
+  body {
+    font-size: 1.125rem;
+  }
+
+  .text-eyebrow {
+    font-size: 0.875rem;
+  }
+
+}
+
+
+/* ==========================================================
+   LARGE DESKTOP — 1440px+
+   ========================================================== */
+
+@media (min-width: 1440px) {
+
+  .text-display {
+    font-size: 7rem;
+  }
+
+  .text-section-title {
+    font-size: 4.5rem;
+  }
+
+}
+
+
+/* ==========================================================
+   ACCESSIBILITY
+   ========================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+
+  a {
+    transition: none;
+  }
+
+}
