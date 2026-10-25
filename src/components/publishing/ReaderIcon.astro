@@ -1,0 +1,7 @@
+---
+import { iconURL } from "../../lib/public-document.ts";
+interface Props { name: string; class?: string; }
+const { name, class: extra = "" } = Astro.props;
+const url = iconURL(name);
+---
+{url ? <span class:list={["reader-icon", extra]} style={`--reader-icon:url(${JSON.stringify(url)})`} aria-hidden="true" /> : <span class:list={["reader-emoji", extra]} aria-hidden="true">{name}</span>}

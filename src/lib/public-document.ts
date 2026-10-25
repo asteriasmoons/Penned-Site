@@ -1,0 +1,50 @@
+import icons from "../../vendor/penned-reader/icons.json";
+import { documentFonts, renderPublicContent, safePhoto, validColor, contrastColor } from "../../vendor/penned-reader/index.mjs";
+import { createPublishingReader, type PublishedPage } from "./publishing.ts";
+
+// This is the existing public backend URL, not a server credential.
+export const publishingProject = import.meta.env.PUBLIC_PENNED_SUPABASE_URL || "https://rfujrtehopxvybsjlwus.supabase.co";
+export const reader = createPublishingReader(publishingProject);
+export const iconURL = (name: string): string | undefined => {
+  const catalogue = icons as Record<string, string>;
+  return catalogue[name] || (["doc.text", "doc", "sf:doc", "sf:doc.text"].includes(name) ? catalogue.linedpages : undefined);
+};
+
+type ObjectValue = Record<string, unknown>;
+function object(value: unknown): ObjectValue { return value && typeof value === "object" && !Array.isArray(value) ? value as ObjectValue : {}; }
+export function presentPublication(page: PublishedPage, token: string) {
+  const { document, settings } = page, appearance = object(document.appearance);
+  const assets = new Set(document.media.map(asset => asset.id.toLowerCase()));
+  function mediaURL(id: string) {
+    if (!assets.has(id.toLowerCase())) throw new Error("Unreferenced publication media");
+    return reader.mediaURL(token, id);
+  }
+  function background(value: unknown, fallback: string): { css: string; blur: boolean; faded: boolean; photo: ObjectValue } {
+    const source = object(value), primary = validColor(source.colorHex) || fallback, secondary = validColor(source.secondaryColorHex) || primary;
+    const direction = ({ topToBottom: "180deg", leftToRight: "90deg", diagonal: "135deg", bottomToTop: "0deg" } as Record<string, string>)[String(source.gradientDirection)] || "135deg";
+    const photo = object(source.remotePhoto), image = typeof source.mediaID === "string" ? mediaURL(source.mediaID) : safePhoto(photo.imageURL);
+    const css = source.kind === "none" ? "transparent" : source.kind === "gradient" ? `linear-gradient(${direction},${primary},${secondary})`
+      : source.kind === "image" && image ? `url(${JSON.stringify(image)}) center/cover no-repeat ${primary}` : primary;
+    return { css, blur: source.blurImage === true, faded: source.effect === "faded", photo };
+  }
+  const outer = background(appearance.editorBackground, "#343434"), paper = background(appearance.innerPageBackground, "#242424");
+  const ink = validColor(appearance.textColorHex) || "#F7F7F7";
+  const font = documentFonts[String(appearance.fontStyle)] || documentFonts.rounded;
+  const light = contrastColor(object(appearance.innerPageBackground).colorHex || "#242424") === "#181821";
+  const styles = `--vellix-primary-text:${ink};--vellix-font-family:${font};--vellix-neutral-rgb:${light ? "33,29,41" : "255,255,255"};--vellix-secondary-text:${light ? "#686171" : "#9b9b9f"};--vellix-property-accent:${light ? "#7955a0" : "#b59ad9"};--vellix-link-color:${light ? "#7833bc" : "#8fe9ff"};--reader-paper-background:${paper.css};color:${ink};font-family:${font};color-scheme:${light ? "light" : "dark"}`;
+  const rendered = renderPublicContent(document, { mediaURL, iconURL, allowFollowLinkedContent: settings.allowFollowLinkedContent === true });
+  const coverPhoto = object(appearance.coverPhoto);
+  const cover = document.cover?.mediaID ? mediaURL(String(document.cover.mediaID)) : safePhoto(coverPhoto.imageURL);
+  const showCover = appearance.showsCover === true || (appearance.showsCover == null && appearance.themeID != null);
+  return { ...rendered, outer, paper, ink, font, light, styles, cover, coverPhoto, showCover,
+    coverTheme: String(appearance.coverThemeID || appearance.themeID || "custom"),
+    theme: String(appearance.themeID || ""), author: settings.showAuthor ? settings.authorName || "" : "" };
+}
+
+export function photoCredit(photo: Record<string, unknown>) {
+  if (!safePhoto(photo.imageURL)) return null;
+  const link = (value: unknown) => {
+    try { const url = new URL(String(value)); return url.protocol === "https:" && url.hostname === "unsplash.com" ? url.href : undefined; } catch { return undefined; }
+  };
+  return { name: String(photo.photographer || "Photographer"), photographerURL: link(photo.photographerURL), sourceURL: link(photo.sourceURL) };
+}
