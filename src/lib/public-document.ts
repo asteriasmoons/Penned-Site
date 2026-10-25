@@ -23,9 +23,9 @@ export function presentPublication(page: PublishedPage, token: string) {
     const source = object(value), primary = validColor(source.colorHex) || fallback, secondary = validColor(source.secondaryColorHex) || primary;
     const direction = ({ topToBottom: "180deg", leftToRight: "90deg", diagonal: "135deg", bottomToTop: "0deg" } as Record<string, string>)[String(source.gradientDirection)] || "135deg";
     const photo = object(source.remotePhoto), image = typeof source.mediaID === "string" ? mediaURL(source.mediaID) : safePhoto(photo.imageURL);
-    const css = source.kind === "none" ? "transparent" : source.kind === "gradient" ? `linear-gradient(${direction},${primary},${secondary})`
+    const css = source.kind === "none" ? "#000000" : source.kind === "gradient" ? `linear-gradient(${direction},${primary},${secondary})`
       : source.kind === "image" && image ? `url(${JSON.stringify(image)}) center/cover no-repeat ${primary}` : primary;
-    return { css, blur: source.blurImage === true, faded: source.effect === "faded", photo };
+    return { css, blur: source.kind === "image" && source.blurImage === true, faded: source.effect === "faded", photo };
   }
   const outer = background(appearance.editorBackground, "#343434"), paper = background(appearance.innerPageBackground, "#242424");
   const ink = validColor(appearance.textColorHex) || "#F7F7F7";
@@ -36,9 +36,13 @@ export function presentPublication(page: PublishedPage, token: string) {
   const coverPhoto = object(appearance.coverPhoto);
   const cover = document.cover?.mediaID ? mediaURL(String(document.cover.mediaID)) : safePhoto(coverPhoto.imageURL);
   const showCover = appearance.showsCover === true || (appearance.showsCover == null && appearance.themeID != null);
+  const themeColors: Record<string, string[]> = { lunarClouds: ["#07080A", "#2A1D44"], neonCode: ["#041314", "#140923"] };
+  const original = themeColors[String(appearance.themeID)], saved = object(appearance.editorBackground);
+  const theme = original && saved.kind === "gradient" && String(saved.colorHex).toUpperCase() === original[0] && String(saved.secondaryColorHex).toUpperCase() === original[1]
+    && (saved.gradientDirection == null || saved.gradientDirection === "diagonal") ? String(appearance.themeID) : "";
   return { ...rendered, outer, paper, ink, font, light, styles, cover, coverPhoto, showCover,
     coverTheme: String(appearance.coverThemeID || appearance.themeID || "custom"),
-    theme: String(appearance.themeID || ""), author: settings.showAuthor ? settings.authorName || "" : "" };
+    theme, author: settings.showAuthor ? settings.authorName || "" : "" };
 }
 
 export function photoCredit(photo: Record<string, unknown>) {

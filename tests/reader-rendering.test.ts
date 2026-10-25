@@ -79,3 +79,10 @@ test("untrusted content stays text; unsafe photos, unexpected nodes and private 
   assert.equal(safePhoto("javascript:alert(1)"), null); assert.equal(safePhoto("https://evil.example/image.png"), null);
   assert.throws(() => render([{ type: "privateWorkspaceDump" }]));
 });
+test("saved nested-cover photos use only approved image origins", () => {
+  const coverPhoto = { imageURL: "https://images.unsplash.com/photo-real", photographer: "Saved photographer", photographerURL: "https://unsplash.com/@person", sourceURL: "https://unsplash.com/photos/real" };
+  const preview = { title: "Nested page", excerpt: "Actual preview", coverPhoto, cardStyle: { size: "large", showsPages: true, backdrop: "solid", startColor: "#242424" } };
+  const doc = document(render([{ type: "publishedPage", attrs: { preview } }]).segments[0]);
+  assert.equal(doc.querySelector("img.reader-entry-cover")!.getAttribute("src"), coverPhoto.imageURL);
+  assert.match(doc.body.textContent!, /Saved photographer/);
+});

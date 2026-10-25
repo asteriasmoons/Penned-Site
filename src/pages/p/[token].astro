@@ -61,7 +61,7 @@ const paperCredit = presentation ? photoCredit(presentation.paper.photo) : null;
     </header>
     {valid && presentation && publication ? <>
       <div class="reader-backdrop" style={`background:${presentation.outer.css}`} data-blur={presentation.outer.blur} data-faded={presentation.outer.faded} aria-hidden="true"></div>
-      {presentation.theme && presentation.theme !== "custom" && <div class="reader-theme-pattern" style={`--reader-pattern:url(${JSON.stringify(iconURL(presentation.theme === "lunarClouds" ? "rainbowclouds" : "codewindow"))})`} data-pattern={presentation.theme} aria-hidden="true"></div>}
+      {presentation.theme && presentation.theme !== "custom" && <div class="reader-theme-pattern" style={`--reader-pattern:url(${JSON.stringify(iconURL(presentation.theme === "lunarClouds" ? "rainbowclouds" : "codewindow"))})`} data-pattern={presentation.theme} data-faded={presentation.outer.faded} aria-hidden="true"></div>}
       <section id="reader-search" class="reader-search" aria-label="Search this document" hidden>
         <ReaderIcon name="searchwavy" />
         <input type="search" data-search-input aria-label="Search document text" autocomplete="off" placeholder="Search document" />
@@ -77,7 +77,7 @@ const paperCredit = presentation ? photoCredit(presentation.paper.photo) : null;
           <nav>{toc.map(item => <a href={`#${item.id}`} style={`--heading-level:${Math.min(3, item.level)}`} data-toc-link>{item.text || "Untitled heading"}</a>)}</nav>
         </aside>}
         <main id="document" class="reader-document" tabindex="-1" aria-label={title}>
-          {presentation.segments.map((html, index) => <article class="reader-paper penned-document" style={presentation!.styles} data-paper-blur={presentation!.paper.blur} data-document-scheme={presentation!.light ? "light" : "dark"} aria-label={index ? `Page ${index + 1}` : title}>
+          {presentation.segments.map((html, index) => <article class="reader-paper penned-document" style={presentation!.styles} data-paper-blur={presentation!.paper.blur} data-paper-faded={presentation!.paper.faded} data-document-scheme={presentation!.light ? "light" : "dark"} aria-label={index ? `Page ${index + 1}` : title}>
             {index === 0 && <>
               {presentation!.showCover && <div class="reader-cover" data-cover-theme={presentation!.coverTheme}>
                 {presentation!.cover ? <img src={presentation!.cover} alt="" fetchpriority="high" decoding="async" /> : <img class="reader-cover-art" src={iconURL(presentation!.coverTheme === "neonCode" ? "codewindow" : "moonzs")} alt="" />}

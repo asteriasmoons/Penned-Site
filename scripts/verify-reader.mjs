@@ -167,6 +167,9 @@ if (mode === "prepare") {
 
     await open(state.publications.light.token);
     assert.match(await page.locator(".reader-paper").first().getAttribute("style"), /ui-serif/);
+    assert.equal(await page.locator(".reader-backdrop").getAttribute("data-faded"), "true");
+    assert.equal(await page.locator(".reader-theme-pattern").count(), 0, "A custom saved background must not inherit a stale theme pattern");
+    assert.match(await page.locator(".reader-backdrop").evaluate(element => getComputedStyle(element, "::after").backgroundColor), /0\.65/);
     await page.setViewportSize({width:1440,height:1000}); await page.screenshot({ path: join(output, "light-desktop.png") });
     await open(dark.token);
     await change("unpublish"); responseErrors = []; errors = [];

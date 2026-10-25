@@ -129,7 +129,7 @@ function initializeReader(root: HTMLBodyElement) {
     search.hidden = !open; openSearch.setAttribute("aria-expanded", String(open));
     if (open) { setContents(false); input.focus(); input.select(); } else { clearSearch(); input.value = ""; openSearch.focus(); }
   }
-  openSearch.addEventListener("click", () => setSearch(search.hidden));
+  openSearch.addEventListener("click", () => setSearch(Boolean(search.hidden)));
   search.querySelector("[data-close-search]")!.addEventListener("click", () => setSearch(false));
   search.querySelector("[data-search-prev]")!.addEventListener("click", () => moveMatch(-1));
   search.querySelector("[data-search-next]")!.addEventListener("click", () => moveMatch(1));

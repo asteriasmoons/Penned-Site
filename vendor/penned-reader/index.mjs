@@ -20300,6 +20300,7 @@ function publicExtensions(options) {
   };
   const cover = (record) => {
     if (record.cover?.mediaID) return ["img", { class: "reader-entry-cover", src: media(record.cover.mediaID), alt: "", loading: "lazy", decoding: "async" }];
+    if (safePhoto(record.coverPhoto?.imageURL)) return ["img", { class: "reader-entry-cover", src: safePhoto(record.coverPhoto.imageURL), alt: "", loading: "lazy", decoding: "async" }];
     if (record.coverThemeID) return ["div", { class: "reader-theme-cover", "data-cover-theme": record.coverThemeID }, ["img", { src: options.iconURL(record.coverThemeID === "neonCode" ? "codewindow" : "moonzs"), alt: "", loading: "lazy" }]];
     return null;
   };
@@ -20342,7 +20343,7 @@ function publicExtensions(options) {
         ["span", { class: "reader-page-card-copy" }, ["strong", {}, record.title], ["span", {}, record.excerpt || ""]]
       ]]
     );
-    return ["div", { class: "reader-page-card-block" }, result, ...photoCredit(card.remotePhoto)];
+    return ["div", { class: "reader-page-card-block" }, result, ...photoCredit(card.remotePhoto), ...photoCredit(record.coverPhoto)];
   };
   const collection = (record) => {
     const fields = record.fields || [], entries = record.entries || [];
@@ -20350,7 +20351,8 @@ function publicExtensions(options) {
     const entry = (row) => linked(row, { class: "penned-collection-card reader-collection-card" }, [
       ...record.showsCover && cover(row) ? [cover(row)] : [],
       ["strong", { class: "penned-collection-card-title" }, row.title],
-      ["div", { class: "penned-collection-card-values" }, ...values2(row)]
+      ["div", { class: "penned-collection-card-values" }, ...values2(row)],
+      ...photoCredit(row.coverPhoto)
     ]);
     let content;
     if (record.kind === "table") {
