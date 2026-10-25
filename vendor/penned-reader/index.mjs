@@ -20320,14 +20320,28 @@ function publicExtensions(options) {
     const photo = card.mediaID ? media(card.mediaID) : safePhoto(card.remotePhoto?.imageURL);
     const background = card.backdrop === "none" ? "transparent" : card.backdrop === "photo" && photo ? `url(${JSON.stringify(photo)}) center/cover` : card.backdrop === "gradient" ? `linear-gradient(135deg,${validColor(card.startColor)},${validColor(card.endColor)})` : validColor(card.startColor);
     const color = card.backdrop === "photo" ? "#fff" : contrastColor(card.startColor);
-    const result = linked(record, {
-      class: "reader-page-card",
-      "data-card-size": card.size,
-      style: style({ "--card-width": `${width}px`, "aspect-ratio": `${width}/${height}`, background, color })
-    }, [
-      ["span", { class: "reader-page-card-copy" }, ["strong", {}, record.title], ["span", {}, record.excerpt || ""]],
-      ...card.showsPages ? [["span", { class: "reader-card-page", "aria-hidden": "true", style: `color:${validColor(record.textColorHex) || "#f7f7f7"}` }, ["strong", {}, record.title], ["span", {}, record.excerpt || ""]]] : []
-    ]);
+    const miniature = (second) => [
+      "span",
+      { class: `reader-card-page${second ? " is-back" : ""}`, "aria-hidden": "true", style: `color:${validColor(record.textColorHex) || "#f7f7f7"};font-family:${documentFonts[record.fontStyle] || documentFonts.rounded}` },
+      ...!second && cover(record) ? [cover(record)] : [],
+      ...!second ? [["strong", {}, record.title], ["span", {}, record.excerpt || ""]] : []
+    ];
+    const result = linked(
+      record,
+      {
+        class: "reader-page-card",
+        "data-card-size": card.size,
+        "data-card-pages": String(card.showsPages),
+        "data-card-width": String(width),
+        style: style({ "--card-width": `${width}px`, "--card-height": `${height}px`, "aspect-ratio": `${width}/${height}`, color })
+      },
+      [[
+        "span",
+        { class: "reader-page-card-face", style: style({ background, "font-family": documentFonts[record.fontStyle] || documentFonts.rounded }) },
+        ...card.showsPages ? [["span", { class: "reader-card-pages" }, ...["wide", "large"].includes(card.size) ? [miniature(true)] : [], miniature(false)]] : [],
+        ["span", { class: "reader-page-card-copy" }, ["strong", {}, record.title], ["span", {}, record.excerpt || ""]]
+      ]]
+    );
     return ["div", { class: "reader-page-card-block" }, result, ...photoCredit(card.remotePhoto)];
   };
   const collection = (record) => {

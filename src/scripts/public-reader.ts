@@ -13,6 +13,18 @@ function initializeReader(root: HTMLBodyElement) {
   let unavailable = false;
   const cleanup: Array<() => void> = [];
 
+  // Native wide/large cards scale their entire fixed-size face with the paper.
+  if ("ResizeObserver" in window) {
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const card = entry.target as HTMLElement;
+        card.style.setProperty("--card-scale", String(entry.contentRect.width / Number(card.dataset.cardWidth)));
+      }
+    });
+    document.querySelectorAll<HTMLElement>(".reader-page-card").forEach(card => observer.observe(card));
+    cleanup.push(() => observer.disconnect());
+  }
+
   // Native details retains ordinary selection, scrolling and keyboard behavior.
   for (const original of document.querySelectorAll<HTMLElement>("[data-reader-toggle]")) {
     const details = document.createElement("details"), summary = document.createElement("summary"), body = document.createElement("div");
@@ -64,9 +76,9 @@ function initializeReader(root: HTMLBodyElement) {
     if (!query) { output.value = ""; updateSearchButtons(); return; }
     const nodes: Array<{ node: Text; from: number; to: number }> = [];
     let source = "", previousBlock: Element | null = null;
-    for (const content of document.querySelectorAll(".reader-content")) {
+    for (const content of document.querySelectorAll(".reader-document-heading,.reader-content")) {
       const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, { acceptNode(node) {
-        return node.parentElement?.closest("script,style,audio,video,button,select,textarea") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+        return node.parentElement?.closest("script,style,audio,video,button,select,textarea,[aria-hidden=true]") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
       } });
       while (walker.nextNode()) {
         const node = walker.currentNode as Text, block = node.parentElement?.closest("p,h1,h2,h3,h4,h5,h6,li,td,th,.reader-page,.reader-collection-card,.reader-property") || node.parentElement;
@@ -86,10 +98,17 @@ function initializeReader(root: HTMLBodyElement) {
     }
     if (highlights && HighlightClass) highlights.set("penned-search", new HighlightClass(...matches.map(match => match.range)));
     else {
-      // Descending offsets preserve earlier ranges when a browser lacks CSS Highlights.
-      for (const match of [...matches].reverse()) {
-        const mark = document.createElement("mark"); mark.dataset.readerSearch = "";
-        mark.append(match.range.extractContents()); match.range.insertNode(mark); match.element = mark;
+      // Wrap each text fragment independently, preserving links and mark hierarchy.
+      for (let index = matches.length - 1; index >= 0; index--) {
+        const match = matches[index], range = match.range;
+        const first = nodes.findIndex(item => item.node === range.startContainer), last = nodes.findIndex(item => item.node === range.endContainer);
+        for (let part = last; part >= first; part--) {
+          const node = nodes[part].node, from = part === first ? range.startOffset : 0, to = part === last ? range.endOffset : node.length;
+          if (to <= from) continue;
+          const selected = node.splitText(from); selected.splitText(to - from);
+          const mark = document.createElement("mark"); mark.dataset.readerSearch = String(index);
+          selected.replaceWith(mark); mark.append(selected); match.element = mark;
+        }
       }
     }
     current = matches.length ? 0 : -1; showMatch(false);
@@ -102,7 +121,7 @@ function initializeReader(root: HTMLBodyElement) {
     document.querySelectorAll("mark[data-current]").forEach(mark => mark.removeAttribute("data-current"));
     const match = matches[current]; if (!match) return;
     if (highlights && HighlightClass) highlights.set("penned-current", new HighlightClass(match.range));
-    else if (match.element instanceof HTMLElement) match.element.dataset.current = "true";
+    else document.querySelectorAll(`mark[data-reader-search="${current}"]`).forEach(mark => mark.setAttribute("data-current", "true"));
     if (scroll) { reveal(match.element); match.element.scrollIntoView({ block: "center", behavior: "auto" }); }
   }
   function moveMatch(delta: number) { if (matches.length) { current = (current + delta + matches.length) % matches.length; showMatch(); } }
@@ -128,7 +147,7 @@ function initializeReader(root: HTMLBodyElement) {
   let imageIndex = 0, zoom = 1;
   function showImage(index: number) {
     imageIndex = (index + mediaLinks.length) % mediaLinks.length; zoom = 1;
-    const link = mediaLinks[imageIndex]; image.src = link.href; image.alt = link.querySelector("img")?.alt || "Image";
+    const link = mediaLinks[imageIndex]; image.src = link.querySelector("img")?.src || link.href; image.alt = link.querySelector("img")?.alt || "Image";
     dialog.querySelector<HTMLElement>("[data-media-name]")!.textContent = image.alt;
     dialog.querySelector<HTMLElement>("[data-media-counter]")!.textContent = `${imageIndex + 1} / ${mediaLinks.length}`;
     dialog.querySelector<HTMLAnchorElement>("[data-media-original]")!.href = link.href;

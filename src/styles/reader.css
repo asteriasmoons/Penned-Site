@@ -135,14 +135,33 @@ button { color: inherit; }
 .penned-document .reader-page-thumbnail strong, .penned-document .reader-page-thumbnail>span { display: block; font-size: 3px; line-height: 1.5; }
 .penned-document .reader-page-thumbnail .reader-entry-cover, .penned-document .reader-page-thumbnail .reader-theme-cover { height: 15px; margin-bottom: 3px; }
 .penned-document .reader-page-card-block { margin: 16px 0; }
-.penned-document .reader-page-card { position: relative; display: flex; align-items: center; gap: 8px; width: min(100%, var(--card-width)); padding: 14px; border-radius: 8px; overflow: hidden; text-decoration: none !important; box-shadow: 0 4px 10px #0003; }
+.penned-document .reader-page-card { position: relative; display: block; width: min(100%, var(--card-width)); border-radius: 8px; overflow: hidden; text-decoration: none !important; box-shadow: 0 4px 10px #0003; }
 .penned-document .reader-page-card[data-card-size="wide"], .penned-document .reader-page-card[data-card-size="large"] { width: 100%; }
-.penned-document .reader-page-card-copy { flex: 1; min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center; gap: 5px; }
-.penned-document .reader-page-card-copy strong { font-size: 16px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.penned-document .reader-page-card-copy>span { font-size: 11px; line-height: 1.4; opacity: .65; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.penned-document .reader-card-page { align-self: center; display: block; flex: 0 0 32%; min-width: 0; height: 85%; padding: 7px; border: 1px solid #ffffff20; border-radius: 4px; overflow: hidden; background: #242424; box-shadow: 3px 6px 8px #0007; }
-.penned-document .reader-card-page strong { font-size: 5px; line-height: 1.3; display: block; }
+.penned-document .reader-page-card-face { position: absolute; left: 0; top: 0; width: var(--card-width); height: var(--card-height); border-radius: 8px; border: .75px solid currentColor; border-color: color-mix(in srgb, currentColor 14%, transparent); transform-origin: top left; transform: scale(var(--card-scale, 1)); overflow: hidden; }
+.penned-document .reader-page-card-copy { position: absolute; left: 18px; top: 18px; right: 14px; display: flex; flex-direction: column; gap: 9px; }
+.penned-document .reader-page-card-copy strong { font-size: 15px; font-weight: 900; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.penned-document .reader-page-card-copy>span { font-size: 13px; line-height: 1.4; opacity: .62; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.penned-document [data-card-pages="true"][data-card-size="compact"] .reader-page-card-copy { left: 14px; top: 47px; gap: 4px; }
+.penned-document [data-card-pages="true"][data-card-size="compact"] .reader-page-card-copy>span { font-size: 11px; -webkit-line-clamp: 1; }
+.penned-document [data-card-pages="true"][data-card-size="wide"] .reader-page-card-copy { top: 26px; right: auto; width: 156px; gap: 6px; }
+.penned-document [data-card-pages="true"][data-card-size="wide"] .reader-page-card-copy strong { font-size: 18px; }
+.penned-document [data-card-pages="true"][data-card-size="large"] .reader-page-card-copy { top: 28px; right: auto; width: 176px; }
+.penned-document [data-card-pages="true"][data-card-size="large"] .reader-page-card-copy strong { font-size: 20px; -webkit-line-clamp: 2; }
+.penned-document [data-card-pages="true"][data-card-size="large"] .reader-page-card-copy>span { -webkit-line-clamp: 4; }
+.penned-document [data-card-pages="true"][data-card-size="landscape"] .reader-page-card-copy>span, .penned-document [data-card-pages="true"][data-card-size="portrait"] .reader-page-card-copy>span { display: none; }
+.penned-document .reader-card-page { position: absolute; display: block; left: 36px; top: 50px; width: 132px; height: 172px; padding: 7px; border: 1px solid #ffffff20; border-radius: 4px; overflow: hidden; background: #242424; box-shadow: 1px 4px 5px #0007; }
+.penned-document .reader-card-page strong { font-size: 6px; line-height: 1.3; display: block; }
 .penned-document .reader-card-page>span { font-size: 4px; line-height: 1.5; display: block; margin-top: 5px; }
+.penned-document .reader-card-page .reader-entry-cover, .penned-document .reader-card-page .reader-theme-cover { height: 36px; margin-bottom: 5px; }
+.penned-document [data-card-size="compact"] .reader-card-pages { position: absolute; left: 14px; top: 10px; width: 32px; height: 32px; border-radius: 50%; overflow: hidden; background: #ffffff15; }
+.penned-document [data-card-size="compact"] .reader-card-page { width: 23px; height: 30px; left: 4.5px; top: 5px; padding: 2px; }
+.penned-document [data-card-size="compact"] .reader-card-page strong { font-size: 2px; }
+.penned-document [data-card-size="compact"] .reader-card-page>span { font-size: 1.5px; margin-top: 1px; }
+.penned-document [data-card-size="compact"] .reader-card-page .reader-entry-cover { height: 8px; }
+.penned-document [data-card-size="wide"] .reader-card-page { width: 116px; height: 151px; left: 190px; top: 26px; }
+.penned-document [data-card-size="wide"] .reader-card-page.is-back { left: 184px; top: 32px; transform: rotate(-1.5deg); transform-origin: bottom left; }
+.penned-document [data-card-size="large"] .reader-card-page { width: 84px; height: 109px; left: 214px; top: 25px; transform: rotate(.5deg); }
+.penned-document [data-card-size="large"] .reader-card-page.is-back { left: 208px; top: 28px; transform: rotate(-1.5deg); }
 .penned-document .reader-content .reader-legacy-reference { display: flex; gap: 10px; align-items: center; margin: 14px 0; opacity: .6; font-size: 13px; }
 .penned-document .reader-attachment { margin: 14px 0; max-width: 100%; }
 .penned-document .reader-attachment img { display: block; max-width: 100%; height: auto; border-radius: 8px; }
