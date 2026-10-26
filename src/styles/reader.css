@@ -45,8 +45,8 @@ button { color: inherit; }
 .reader-cover { position: relative; height: 300px; border-radius: 8px; overflow: hidden; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #121416, #2a2b31); }
 .reader-cover>img { display: block; height: 100%; width: 100%; object-fit: cover; }
 .reader-cover>img.reader-cover-art { width: 44%; height: 54%; object-fit: contain; filter: drop-shadow(0 0 26px #8fe9ff60); }
-.reader-cover[data-cover-theme="lunarClouds"], .reader-theme-cover[data-cover-theme="lunarClouds"] { background: linear-gradient(135deg, #09213a, #6928a8); }
-.reader-cover[data-cover-theme="neonCode"], .reader-theme-cover[data-cover-theme="neonCode"] { background: linear-gradient(135deg, #000, #061b1b, #160b28); }
+.reader-cover[data-cover-theme="lunarClouds"], .penned-document .reader-theme-cover[data-cover-theme="lunarClouds"] { background: linear-gradient(135deg, #09213a, #6928a8); }
+.reader-cover[data-cover-theme="neonCode"], .penned-document .reader-theme-cover[data-cover-theme="neonCode"] { background: linear-gradient(135deg, #000, #061b1b, #160b28); }
 .reader-document-heading { margin: 0 0 22px; padding-bottom: 18px; border-bottom: 1px solid color-mix(in srgb, var(--vellix-primary-text) 10%, transparent); }
 .reader-title-row { display: flex; gap: 16px; align-items: start; }
 .reader-title-row h1 { flex: 1; min-width: 0; margin: 0; font: 900 28px/1.25 var(--vellix-font-family); letter-spacing: 0; overflow-wrap: anywhere; }
