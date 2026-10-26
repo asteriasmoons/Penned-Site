@@ -120,7 +120,7 @@ function initializeReader(root: HTMLBodyElement) {
     const target = document.getElementById(link.hash.slice(1)); if (target) reveal(target);
     setContents(false);
   });
-  const headings = document.querySelectorAll<HTMLElement>(".reader-content h1[id],.reader-content h2[id],.reader-content h3[id],.reader-content h4[id],.reader-content h5[id],.reader-content h6[id]");
+  const headings = document.querySelectorAll<HTMLElement>('.reader-content [id^="penned-heading-"]');
   if ("IntersectionObserver" in window) {
     const observer = new IntersectionObserver(entries => {
       const active = entries.filter(entry => entry.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];

@@ -20312,7 +20312,7 @@ function publicExtensions(options) {
   };
   const page = (record) => {
     const card = record.cardStyle;
-    if (!card) return linked(record, { class: "vellix-page-reference-button reader-page" }, [
+    if (!card) return linked(record, { class: "vellix-page-reference-button reader-page", id: record.readerAnchor }, [
       ["span", { class: "reader-page-thumbnail", "aria-hidden": "true" }, ...cover(record) ? [cover(record)] : [], ["strong", {}, record.title], ["span", {}, record.excerpt || ""]],
       ["span", { class: "vellix-page-reference-text" }, ["span", { class: "vellix-page-reference-title" }, record.title], ["span", { class: "vellix-page-reference-excerpt" }, record.excerpt || ""]]
     ]);
@@ -20343,7 +20343,7 @@ function publicExtensions(options) {
         ["span", { class: "reader-page-card-copy" }, ["strong", {}, record.title], ["span", {}, record.excerpt || ""]]
       ]]
     );
-    return ["div", { class: "reader-page-card-block" }, result, ...photoCredit(card.remotePhoto), ...photoCredit(record.coverPhoto)];
+    return ["div", { class: "reader-page-card-block", id: record.readerAnchor }, result, ...photoCredit(card.remotePhoto), ...photoCredit(record.coverPhoto)];
   };
   const collection = (record) => {
     const views = record.views?.length ? record.views : [{ ...record, key: "view-0" }];
@@ -20427,7 +20427,7 @@ function publicExtensions(options) {
     }
     return [
       "section",
-      { class: "penned-collection reader-collection", "data-collection-kind": active.kind, "data-active-view": active.key },
+      { class: "penned-collection reader-collection", id: record.readerAnchor, "data-collection-kind": active.kind, "data-active-view": active.key },
       [
         "div",
         { class: "penned-collection-header" },
@@ -20571,7 +20571,7 @@ function publicExtensions(options) {
       addAttributes: () => defaults2({ name: "Table", readerWidths: [], leftOffset: 0, stripeColor: null, columnless: false, rowless: false, rowCount: 0, columnCount: 0, headerRow: true }),
       renderHTML: ({ node }) => [
         "div",
-        { class: "vellix-table-wrapper reader-table-scroll", role: "region", tabindex: "0", "aria-label": node.attrs.name },
+        { class: "vellix-table-wrapper reader-table-scroll", id: node.attrs.readerAnchor, role: "region", tabindex: "0", "aria-label": node.attrs.name },
         [
           "table",
           {
@@ -20638,10 +20638,13 @@ function renderPublicContent(document2, options) {
   let count = 0;
   function headings(node, depth) {
     if (++count > 2e4 || depth > 64) throw new Error("Publication content exceeds its limits");
-    if (node.type === "heading") {
+    const section = node.type === "publishedCollection" ? node.attrs?.projection?.name : node.type === "publishedPage" ? node.attrs?.preview?.title : node.type === "table" ? node.attrs?.name : null;
+    if (node.type === "heading" || typeof section === "string" && section.trim()) {
       const id = `penned-heading-${toc.length}`;
       node.attrs = { ...node.attrs, readerAnchor: id };
-      toc.push({ id, level: node.attrs.level || 1, text: text(node) });
+      if (node.type === "publishedCollection") node.attrs.projection.readerAnchor = id;
+      if (node.type === "publishedPage") node.attrs.preview.readerAnchor = id;
+      toc.push({ id, level: node.attrs.level || 1, text: section || text(node) });
     }
     for (const child of node.content || []) headings(child, depth + 1);
   }

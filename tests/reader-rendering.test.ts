@@ -35,6 +35,16 @@ test("tables use the real formula engine, saved widths, spans, colors and number
   assert.match(doc.querySelectorAll("td")[2].getAttribute("style")!, /background-color:\s*#334455/);
   assert.equal((doc.querySelectorAll("td")[2] as HTMLElement).style.textAlign, "right");
 });
+test("contents includes actual collection, page/card and named table sections with working unique anchors",()=>{
+  const nodes=[{type:"publishedCollection",attrs:{projection:{name:"Daily Tasks",viewName:"Home",kind:"gallery",fields:[],entries:[]}}},
+    {type:"publishedPage",attrs:{preview:{title:"Nested Page",excerpt:"Visible preview"}}},
+    {type:"publishedPage",attrs:{preview:{title:"Card",excerpt:"Visible preview",cardStyle:{size:"compact",backdrop:"solid",startColor:"#123456",showsPages:false}}}},
+    {type:"table",attrs:{name:"Saved Table"},content:[]}];
+  const before=JSON.stringify(nodes),result=render(nodes),doc=document(result.segments.join(""));
+  assert.deepEqual(result.toc.map(item=>item.text),["Daily Tasks","Nested Page","Card","Saved Table"]);
+  for(const entry of result.toc)assert.equal(doc.querySelectorAll('#'+entry.id).length,1);
+  assert.equal(JSON.stringify(nodes),before);
+});
 test("visible table, gallery and native-dependent Kanban collections render their real rows without edit controls", () => {
   for (const kind of ["table", "gallery", "kanban"]) {
     const projection = { name: "Saved collection", viewName: "Main", kind, fields: [{ key: "field-0", name: "Status", kind: "select", icon: "listcircle" }],

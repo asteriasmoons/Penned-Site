@@ -44,7 +44,9 @@ export function presentPublication(page: PublishedPage, token: string) {
     && (saved.gradientDirection == null || saved.gradientDirection === "diagonal") ? String(appearance.themeID) : "";
   return { ...rendered, outer, paper, ink, font, light, styles, cover, coverPhoto, showCover,
     coverTheme: String(appearance.coverThemeID || appearance.themeID || "custom"),
-    theme, author: settings.showAuthor ? settings.authorName || "" : "" };
+    theme, author: settings.showAuthor ? settings.authorName || "" : "",
+    authorAvatar: settings.showAuthor && document.authorAvatar ? mediaURL(document.authorAvatar.mediaID) : null,
+    authorInitials: (settings.authorName || "").trim().split(/\s+/u).filter(Boolean).filter((_, i, names) => i === 0 || i === names.length - 1).map(name => Array.from(name)[0]).join("").toLocaleUpperCase().slice(0, 4) };
 }
 
 export function photoCredit(photo: Record<string, unknown>) {

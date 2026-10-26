@@ -92,7 +92,11 @@ const paperCredit = presentation ? photoCredit(presentation.paper.photo) : null;
               {(publication!.settings.showTitle !== false || publication!.document.subtitle || presentation!.author) && <header class="reader-document-heading">
                 {publication!.settings.showTitle !== false && <div class="reader-title-row"><h1>{publication!.document.title || "Untitled"}</h1>{publication!.document.icon && <ReaderIcon name={publication!.document.icon} class="reader-document-icon" />}</div>}
                 {publication!.document.subtitle && <p class="reader-subtitle">{publication!.document.subtitle}</p>}
-                {presentation!.author && <p class="reader-author">{presentation!.author}</p>}
+                {(presentation!.author || presentation!.authorAvatar) && <div class="reader-author">
+                  {presentation!.authorAvatar ? <img class="reader-author-avatar" src={presentation!.authorAvatar} alt="" width="32" height="32" decoding="async" />
+                    : <span class="reader-author-avatar reader-author-initials" aria-hidden="true">{presentation!.authorInitials}</span>}
+                  <span>{presentation!.author}</span>
+                </div>}
               </header>}
             </>}
             <div class="tiptap-editor reader-content" set:html={html}></div>

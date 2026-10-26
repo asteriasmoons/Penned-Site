@@ -10,6 +10,7 @@ export interface PublishedPage {
     appearance: Record<string, unknown>;
     content: Record<string, unknown>;
     media: Array<{ id: string; name: string; mimeType: string; size: number; sha256: string }>;
+    authorAvatar?: { mediaID: string };
   };
   settings: { showTitle: boolean; showAuthor: boolean; showTableOfContents: boolean; allowIndexing: boolean; allowFollowLinkedContent?: boolean; authorName?: string; expiresAt?: string | null; showBranding?: boolean; hideHashtags?: boolean };
 }
