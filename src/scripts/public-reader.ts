@@ -1,5 +1,27 @@
+// Keep the access handler in this external entry: Astro inlines small component
+// scripts in production, which the reader's strict script-src policy rejects.
+const accessForm=document.querySelector<HTMLFormElement>("[data-reader-gate]");
+if(accessForm)initializeAccessGate(accessForm);
 const root = document.querySelector<HTMLBodyElement>("body[data-publication]");
 if (root) initializeReader(root);
+
+function initializeAccessGate(form: HTMLFormElement) {
+  async function submit(sendCode:boolean){
+    if(!form.reportValidity())return;
+    const buttons=[...form.querySelectorAll<HTMLButtonElement>("button")],message=form.querySelector<HTMLElement>("[data-gate-message]")!;
+    buttons.forEach(button=>button.disabled=true);message.hidden=false;message.textContent=sendCode?"Sending verification code...":"Verifying access...";
+    try{
+      const input=Object.fromEntries(new FormData(form).entries());
+      const response=await fetch(`/p/${form.dataset.token}/${sendCode?"email":"access"}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input),credentials:"same-origin"});
+      const result=await response.json();
+      if(result.authorized){location.reload();return;}
+      message.textContent=result.sent?"Check your email for a verification code.":response.status===429?"Too many attempts. Please try again later.":response.status>=500?"Could not connect. Please try again.":"The password, email address, or verification code could not be verified.";
+    }catch{message.textContent="Connection unavailable. Please try again.";}
+    finally{buttons.forEach(button=>button.disabled=false);}
+  }
+  form.addEventListener("submit",event=>{event.preventDefault();void submit(false);});
+  form.querySelector("[data-send-code]")?.addEventListener("click",()=>void submit(true));
+}
 
 function initializeReader(root: HTMLBodyElement) {
   const api = root.dataset.api!;

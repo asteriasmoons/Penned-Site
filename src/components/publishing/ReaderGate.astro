@@ -6,7 +6,7 @@ const { password, email, token }=Astro.props;
 <main class="reader-state reader-gate" id="document">
   <ReaderIcon name="lockwavy" />
   <h1>Protected Document</h1>
-  <form data-reader-gate data-token={token}>
+  <form method="post" data-reader-gate data-token={token}>
     {password&&<label>Password<input type="password" name="password" autocomplete="current-password" required maxlength="256" /></label>}
     {email&&<>
       <label>Email<input type="email" name="email" autocomplete="email" required maxlength="254" /></label>
@@ -17,23 +17,3 @@ const { password, email, token }=Astro.props;
     <button type="submit">Open Document</button>
   </form>
 </main>
-<script>
-  const form=document.querySelector<HTMLFormElement>("[data-reader-gate]");
-  if(form){
-    async function submit(sendCode:boolean){
-      if(!form!.reportValidity())return;
-      const buttons=[...form!.querySelectorAll<HTMLButtonElement>("button")],message=form!.querySelector<HTMLElement>("[data-gate-message]")!;
-      buttons.forEach(button=>button.disabled=true);message.hidden=false;message.textContent=sendCode?"Sending verification code...":"Verifying access...";
-      try{
-        const input=Object.fromEntries(new FormData(form!).entries());
-        const response=await fetch(`/p/${form!.dataset.token}/${sendCode?"email":"access"}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input),credentials:"same-origin"});
-        const result=await response.json();
-        if(result.authorized){location.reload();return;}
-        message.textContent=result.sent?"Check your email for a verification code.":response.status===429?"Too many attempts. Please try again later.":response.status>=500?"Could not connect. Please try again.":"The password, email address, or verification code could not be verified.";
-      }catch{message.textContent="Connection unavailable. Please try again.";}
-      finally{buttons.forEach(button=>button.disabled=false);}
-    }
-    form.addEventListener("submit",event=>{event.preventDefault();void submit(false);});
-    form.querySelector("[data-send-code]")?.addEventListener("click",()=>void submit(true));
-  }
-</script>

@@ -1,6 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { createPublishingReader, ReaderAccessRequired } from "../src/lib/publishing.ts";
+
+test("access form uses the external reader entry under the strict production CSP", async () => {
+  const gate=await readFile(new URL("../src/components/publishing/ReaderGate.astro",import.meta.url),"utf8");
+  const reader=await readFile(new URL("../src/scripts/public-reader.ts",import.meta.url),"utf8");
+  assert.doesNotMatch(gate,/<script/);
+  assert.match(gate,/<form method="post"/);
+  assert.match(reader,/if\(accessForm\)initializeAccessGate\(accessForm\)/);
+  assert.match(reader,/form\.addEventListener\("submit",event=>\{event\.preventDefault\(\)/);
+});
 
 test("public reader sends no account credentials and uses publication-scoped media URLs", async () => {
   const token = "a".repeat(64), media = crypto.randomUUID();
