@@ -7,7 +7,7 @@ export const publishingProject = import.meta.env.PUBLIC_PENNED_SUPABASE_URL || "
 export const reader = createPublishingReader(publishingProject);
 export const iconURL = (name: string): string | undefined => {
   const catalogue = icons as Record<string, string>;
-  return catalogue[name] || (["doc.text", "doc", "sf:doc", "sf:doc.text"].includes(name) ? catalogue.linedpages : undefined);
+  return catalogue[name] || (["doc.text", "doc", "sf:doc", "sf:doc.text"].includes(name) || name.startsWith("sf:") ? catalogue.linedpages : undefined);
 };
 
 type ObjectValue = Record<string, unknown>;

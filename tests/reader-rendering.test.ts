@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Window } from "happy-dom";
+import { readFile } from "node:fs/promises";
 import { renderPublicContent, safePhoto } from "../vendor/penned-reader/index.mjs";
 
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
@@ -68,6 +69,31 @@ test("cards/pages are always visible and become links only through the follow-li
   assert.match(closed.body.textContent!, /Actual saved excerpt/);
   const open = document(render(nodes, [], { allowFollowLinkedContent: true }).segments[0]);
   assert.equal(open.querySelector("a")!.getAttribute("href"), "/p/" + "a".repeat(64));
+  const shortened = document(render([{ type: "publishedPage", attrs: { preview: { ...preview, targetToken: "a1b2c3d4" } } }], [], { allowFollowLinkedContent: true }).segments[0]);
+  assert.equal(shortened.querySelector("a")!.getAttribute("href"), "/p/a1b2c3d4");
+});
+test("native SF Symbol headers resolve to actual glyph assets, not their raw identifiers", async () => {
+  const catalogue=JSON.parse(await readFile(new URL("../vendor/penned-reader/icons.json",import.meta.url),"utf8"));
+  for(const name of ["sf:flag.fill","sf:square.text.square","sf:chevron.down","sf:chevron.right","sf:plus"]) {
+    assert.match(catalogue[name],/^\/viewer-assets\/symbols\/[a-f0-9]{24}\.png$/);
+    const bytes=await readFile(new URL("../public"+catalogue[name],import.meta.url));
+    assert.equal(bytes.subarray(1,4).toString(),"PNG");
+  }
+  const projection={name:"Tasks",viewName:"Table",kind:"table",fields:[{key:"field-0",name:"Priority",kind:"text",icon:"sf:flag.fill"}],entries:[]};
+  const result=render([{type:"publishedCollection",attrs:{projection}}],[],{iconURL:(name:string)=>catalogue[name]});
+  const doc=document(result.segments[0]);
+  assert.doesNotMatch(doc.body.textContent!,/sf:|flag.fill/);
+  assert.equal(doc.querySelectorAll("[role=columnheader] .reader-icon").length,1);
+});
+test("Kanban omits empty value rows and retains native plain controls and a read-only footer",()=>{
+  const projection={name:"Tasks",viewName:"Board",kind:"kanban",fields:[{key:"field-0",name:"Priority",kind:"text"}],
+    groups:[{key:"group-0",name:"Morning",color:"#FFFF99"}],entries:[{title:"Title only",group:"group-0",values:{"field-0":{empty:true}}},{title:"No value",group:"group-0",values:{}}]};
+  const doc=document(render([{type:"publishedCollection",attrs:{projection}}]).segments[0]);
+  assert.equal(doc.querySelectorAll(".reader-kanban-card").length,2);
+  assert.equal(doc.querySelectorAll(".reader-kanban-values").length,0);
+  assert.match(doc.querySelector(".reader-kanban-column>summary>.reader-icon")!.getAttribute("style")!,/sf%3Achevron.down/);
+  assert.equal(doc.querySelector(".reader-kanban-footer")!.textContent,"Add Column");
+  assert.equal(doc.querySelectorAll(".reader-kanban-layout button,input,[contenteditable]").length,0);
 });
 test("tasks and template values stay non-editable while preserving completion, skip and actual slider response", () => {
   const doc = document(render([{ type: "taskList", content: [{ type: "taskItem", attrs: { checked: true }, content: [paragraph("Done")] },

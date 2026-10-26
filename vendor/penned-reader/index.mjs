@@ -20295,7 +20295,7 @@ function publicExtensions(options) {
     return source ? ["span", { class: "reader-icon", "aria-hidden": "true", style: `--reader-icon:url(${JSON.stringify(source)})` }] : ["span", { class: "reader-emoji", "aria-hidden": "true" }, String(name || "")];
   };
   const linked = (record, attributes, children) => {
-    const canFollow = options.allowFollowLinkedContent && /^[a-f\d]{64}$/.test(record.targetToken || "");
+    const canFollow = options.allowFollowLinkedContent && /^[a-z0-9][a-z0-9-]{1,78}[a-z0-9]$/.test(record.targetToken || "");
     return [canFollow ? "a" : "div", { ...attributes, ...canFollow ? { href: `/p/${record.targetToken}`, "data-reader-linked": "", rel: "noreferrer" } : {} }, ...children];
   };
   const cover = (record) => {
@@ -20378,23 +20378,26 @@ function publicExtensions(options) {
           ]
         ];
       } else if (view.kind === "kanban") {
-        content = ["div", { class: "reader-kanban", role: "region", "aria-label": `${record.name}, ${view.viewName}`, tabindex: "0" }, ...(view.groups || []).map((group) => {
+        content = ["div", { class: "reader-kanban-layout" }, ["div", { class: "reader-kanban", role: "region", "aria-label": `${record.name}, ${view.viewName}`, tabindex: "0" }, ...(view.groups || []).map((group) => {
           const rows = entries.filter((row) => row.group === group.key);
           return [
             "details",
             { class: "reader-kanban-column", ...group.collapsed ? {} : { open: "" }, style: `--column-color:${validColor(group.color) || "#34363f"};--column-ink:${contrastColor(group.color)}` },
-            ["summary", {}, icon("chevdown"), ["strong", {}, group.name], ["span", { class: "reader-column-count" }, String(rows.length)], readingIcon("addwavy", "reader-column-add")],
+            ["summary", {}, icon("sf:chevron.down"), ["strong", {}, group.name], ["span", { class: "reader-column-count" }, String(rows.length)], readingIcon("sf:plus", "reader-column-add")],
             ["div", { class: "reader-kanban-entries" }, ...rows.map((row) => [
               "div",
               { class: "reader-kanban-card" },
-              linked(row, { class: "reader-kanban-title" }, [["span", {}, row.title], icon("chevright")]),
-              ["div", { class: "reader-kanban-values" }, ...fields.filter((field) => !row.values?.[field.key]?.empty).flatMap((field) => {
-                const value = row.values?.[field.key];
-                return (value?.chips?.length ? value.chips : [{ name: value?.text || "", color: "#87B9D5" }]).map((chip) => ["span", { class: "reader-kanban-tag", style: `--chip-color:${validColor(chip.color) || "#87B9D5"}` }, chip.name]);
-              })]
-            ]), ...rows.length ? [readingIcon("addwavy", "reader-kanban-add")] : []]
+              linked(row, { class: "reader-kanban-title" }, [["span", {}, row.title], icon("sf:chevron.right")]),
+              ...(() => {
+                const tags = fields.filter((field) => !row.values?.[field.key]?.empty).flatMap((field) => {
+                  const value = row.values?.[field.key];
+                  return (value?.chips?.length ? value.chips : [{ name: value?.text || "", color: "#87B9D5" }]).map((chip) => ["span", { class: "reader-kanban-tag", style: `--chip-color:${validColor(chip.color) || "#87B9D5"}` }, chip.name]);
+                }).filter((tag) => tag[2]);
+                return tags.length ? [["div", { class: "reader-kanban-values" }, ...tags]] : [];
+              })()
+            ]), ...rows.length ? [readingIcon("sf:plus", "reader-kanban-add")] : []]
           ];
-        })];
+        })], ["div", { class: "reader-kanban-footer", "aria-hidden": "true" }, ["span", {}, icon("addwavy"), "Add Column"], readingIcon("dotswavy")]];
       } else {
         content = [
           "div",
