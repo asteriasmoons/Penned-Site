@@ -41,9 +41,24 @@ test("visible table, gallery and native-dependent Kanban collections render thei
       groups: [{ key: "group-0", name: "In Progress", color: "#225544", collapsed: false }], galleryColumns: 2 };
     const doc = document(render([{ type: "publishedCollection", attrs: { projection } }]).segments[0]);
     assert.match(doc.body.textContent!, /Saved collection/); assert.match(doc.body.textContent!, /Saved entry/); assert.match(doc.body.textContent!, /Active/);
-    assert.equal(doc.querySelectorAll("button,input,[draggable=true],[contenteditable]").length, 0);
+    assert.equal(doc.querySelectorAll("input,[draggable=true],[contenteditable],button:not([data-select-collection-view])").length, 0);
     if (kind === "kanban") assert.equal(doc.querySelectorAll("details.reader-kanban-column[open]").length, 1);
   }
+});
+test("gallery matches native cover slots, table grid tracks, saved views and read-only board cards", () => {
+  const base = { name: "Daily Tasks", viewName: "Home", kind: "gallery", galleryColumns: 3, showsCover: true,
+    fields: [{ key: "field-0", name: "Priority", kind: "select", icon: "flag" }],
+    entries: [{ title: "Take Medicine", group: "group-0", values: { "field-0": { text: "Medium", chips: [{ name: "Medium", color: "#BC76FF" }] } } }],
+    groups: [{ key: "group-0", name: "Unassigned", color: "#34363f" }] };
+  const projection = { ...base, activeViewKey: "view-0", views: [{ ...base, key: "view-0" }, { ...base, key: "view-1", viewName: "Main", kind: "table" }, { ...base, key: "view-2", viewName: "Board", kind: "kanban" }] };
+  const doc = document(render([{ type: "publishedCollection", attrs: { projection } }]).segments[0]);
+  assert.equal(doc.querySelectorAll("[data-select-collection-view]").length, 3);
+  assert.equal(doc.querySelectorAll("[data-collection-view]:not([hidden])").length, 1);
+  assert.equal(doc.querySelectorAll(".penned-collection-cover .reader-icon").length, 1);
+  assert.equal((doc.querySelector(".penned-collection-gallery") as HTMLElement).style.getPropertyValue("--collection-columns"), "3");
+  assert.match(doc.querySelector(".penned-collection-table")!.getAttribute("style")!, /220px 180px 44px/);
+  assert.equal(doc.querySelectorAll(".reader-kanban-card .penned-collection-cover").length, 0);
+  assert.match(doc.querySelector(".reader-kanban-card")!.textContent!, /Take Medicine.*Medium/);
 });
 test("cards/pages are always visible and become links only through the follow-linked-content setting", () => {
   const preview = { title: "Actual page", excerpt: "Actual saved excerpt", targetToken: "a".repeat(64), cardStyle: { size: "large", backdrop: "gradient", startColor: "#123456", endColor: "#654321", showsPages: true } };

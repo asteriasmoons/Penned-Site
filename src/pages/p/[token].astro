@@ -7,6 +7,9 @@ import ReaderGate from "../../components/publishing/ReaderGate.astro";
 import "../../styles/reader.css";
 
 export const prerender = false;
+if (Astro.url.hostname === "penned-site-pi.vercel.app") {
+  return Astro.redirect("https://www.penned.im" + Astro.url.pathname + Astro.url.search, 308);
+}
 const token = Astro.params.token || "";
 let publication: PublishedPage | null = null;
 let unavailable = false;

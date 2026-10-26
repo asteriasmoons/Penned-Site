@@ -34,6 +34,54 @@ function initializeReader(root: HTMLBodyElement) {
   const openContents = document.querySelector<HTMLButtonElement>("[data-open-contents]");
   let unavailable = false;
   const cleanup: Array<() => void> = [];
+  const collections = [...document.querySelectorAll<HTMLElement>(".reader-collection")];
+  function updateGalleryFade(viewport: HTMLElement) {
+    viewport.style.setProperty("--gallery-start-opacity", viewport.scrollTop > 1 ? "0" : "1");
+    viewport.style.setProperty("--gallery-end-opacity", viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight - 1 ? "0" : "1");
+  }
+  function selectCollectionView(collection: HTMLElement, key: string) {
+    const panels = [...collection.querySelectorAll<HTMLElement>(":scope > [data-collection-view]")];
+    const selected = panels.find(panel => panel.dataset.collectionView === key);
+    if (!selected) return;
+    for (const panel of panels) panel.hidden = panel !== selected;
+    collection.dataset.activeView = key; collection.dataset.collectionKind = selected.dataset.viewKind;
+    collection.querySelector<HTMLElement>("[data-current-view-name]")!.textContent = selected.dataset.viewName || "";
+    collection.querySelectorAll<HTMLButtonElement>("[data-select-collection-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.selectCollectionView === key)));
+    collection.querySelector<HTMLDetailsElement>(".reader-view-menu")!.open = false;
+    selected.querySelectorAll<HTMLElement>(".penned-collection-gallery-scroll").forEach(updateGalleryFade);
+  }
+  for (const collection of collections) {
+    const menu = collection.querySelector<HTMLDetailsElement>(".reader-view-menu")!;
+    const summary = menu.querySelector<HTMLElement>("summary")!;
+    menu.addEventListener("toggle", () => {
+      if (!menu.open) return;
+      for (const other of collections) if (other !== collection) other.querySelector<HTMLDetailsElement>(".reader-view-menu")!.open = false;
+      const rect = summary.getBoundingClientRect(), width = Math.min(280, innerWidth - 24);
+      const height = Math.min(280, innerHeight / 2, menu.querySelector<HTMLElement>(".reader-view-options")!.scrollHeight);
+      menu.style.setProperty("--view-menu-left", `${Math.max(12, Math.min(innerWidth - width - 12, rect.right - width))}px`);
+      menu.style.setProperty("--view-menu-width", `${width}px`);
+      menu.style.setProperty("--view-menu-top", `${rect.bottom + height + 12 < innerHeight ? rect.bottom + 4 : Math.max(64, rect.top - height - 4)}px`);
+    });
+    menu.querySelectorAll<HTMLButtonElement>("[data-select-collection-view]").forEach(button => button.addEventListener("click", () => {
+      selectCollectionView(collection, button.dataset.selectCollectionView!); summary.focus({ preventScroll: true });
+    }));
+    collection.querySelectorAll<HTMLElement>(".penned-collection-gallery-scroll").forEach(viewport => {
+      viewport.addEventListener("scroll", () => updateGalleryFade(viewport), { passive: true });
+      if ("ResizeObserver" in window) {
+        const observer = new ResizeObserver(() => updateGalleryFade(viewport)); observer.observe(viewport);
+        cleanup.push(() => observer.disconnect());
+      }
+      updateGalleryFade(viewport);
+    });
+  }
+  document.addEventListener("click", event => {
+    if (!(event.target instanceof Element) || event.target.closest(".reader-view-menu")) return;
+    for (const collection of collections) collection.querySelector<HTMLDetailsElement>(".reader-view-menu")!.open = false;
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    for (const collection of collections) collection.querySelector<HTMLDetailsElement>(".reader-view-menu")!.open = false;
+  });
 
   // Native wide/large cards scale their entire fixed-size face with the paper.
   if ("ResizeObserver" in window) {
@@ -100,7 +148,7 @@ function initializeReader(root: HTMLBodyElement) {
     let source = "", previousBlock: Element | null = null;
     for (const content of document.querySelectorAll(".reader-document-heading,.reader-content")) {
       const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, { acceptNode(node) {
-        return node.parentElement?.closest("script,style,audio,video,button,select,textarea,[aria-hidden=true]") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+        return node.parentElement?.closest("script,style,audio,video,button,select,textarea,[aria-hidden=true],[hidden]") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
       } });
       while (walker.nextNode()) {
         const node = walker.currentNode as Text, block = node.parentElement?.closest("p,h1,h2,h3,h4,h5,h6,li,td,th,.reader-page,.reader-collection-card,.reader-property") || node.parentElement;
@@ -225,7 +273,8 @@ function initializeReader(root: HTMLBodyElement) {
     const heading=[...headings].reverse().find(element=>element.getBoundingClientRect().top<innerHeight);
     try{sessionStorage.setItem(readingKey,JSON.stringify({y:scrollY,ratio:scrollY/Math.max(1,document.documentElement.scrollHeight-innerHeight),
       text:block?.textContent?.slice(0,160),index:block?candidates.indexOf(block):-1,offset:block?.getBoundingClientRect().top,heading:heading?.id,headingOffset:heading?.getBoundingClientRect().top,
-      toggles:[...document.querySelectorAll<HTMLDetailsElement>("details.reader-toggle")].map(details=>details.open)}));}catch{}
+      toggles:[...document.querySelectorAll<HTMLDetailsElement>("details.reader-toggle")].map(details=>details.open),
+      collectionViews:collections.map(collection=>collection.dataset.activeView)}));}catch{}
     location.reload();
   }
   const updateTimer=window.setInterval(refreshContent,1000);cleanup.push(()=>window.clearInterval(updateTimer));
@@ -233,6 +282,7 @@ function initializeReader(root: HTMLBodyElement) {
     const saved=sessionStorage.getItem(readingKey);
     if(saved){sessionStorage.removeItem(readingKey);const position=JSON.parse(saved);
       document.querySelectorAll<HTMLDetailsElement>("details.reader-toggle").forEach((details,index)=>{if(typeof position.toggles?.[index]==="boolean")details.open=position.toggles[index];});
+      collections.forEach((collection,index)=>{if(typeof position.collectionViews?.[index]==="string")selectCollectionView(collection,position.collectionViews[index]);});
       const restore=()=>{
         const candidates=[...document.querySelectorAll<HTMLElement>(".reader-content > *, .reader-document-heading")];
         const block=candidates.filter(element=>element.textContent?.slice(0,160)===position.text).sort((a,b)=>Math.abs(candidates.indexOf(a)-position.index)-Math.abs(candidates.indexOf(b)-position.index))[0];

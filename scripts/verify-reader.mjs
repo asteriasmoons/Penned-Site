@@ -56,21 +56,24 @@ async function publish(name, fixture, token) {
 if (mode === "prepare") {
   assert.equal(state.users.length, 0, "Clean up the previous fixture run first");
   try {
-    const first = await createUser(1), second = await createUser(2);
+    const focused = option("--only") === "dark";
+    const first = await createUser(1), second = focused ? undefined : await createUser(2);
     const fixture = async name => JSON.parse(await readFile(join(directory, name + ".json"), "utf8"));
-    await publish("otherLinked", await fixture("linked"), second);
-    await publish("linked", await fixture("linked"), first);
+    if (!focused) {
+      await publish("otherLinked", await fixture("linked"), second);
+      await publish("linked", await fixture("linked"), first);
+    }
     await publish("dark", await fixture("dark"), first);
-    await publish("light", await fixture("light"), first);
+    if (!focused) await publish("light", await fixture("light"), first);
     // The same local media IDs under another account must never collide or cross-read.
-    await publish("otherDark", await fixture("dark"), second);
-    for (const name of ["dark", "light"]) {
+    if (!focused) await publish("otherDark", await fixture("dark"), second);
+    for (const name of focused ? ["dark"] : ["dark", "light"]) {
       const document = await call("public/" + state.publications[name].token);
       assert.doesNotMatch(JSON.stringify(document), /PRIVATE|targetDocumentID|collectionID|relativePath|parentDocumentID|sourceDocumentID|sourceLibraryID/);
       assert.ok(JSON.stringify(document).includes("publishedCollection"));
     }
     console.log("Prepared saved native documents through the actual publishing API; no mock responses or user documents used.");
-    console.log(Object.fromEntries(["dark", "light"].map(name => [name, base + "/p/" + state.publications[name].token])));
+    console.log(Object.fromEntries((focused ? ["dark"] : ["dark", "light"]).map(name => [name, base + "/p/" + state.publications[name].token])));
   } catch (error) { console.error("Preparation failed; fixture IDs remain in the restricted state file for cleanup."); throw error; }
 } else if(mode === "controls") {
   const {chromium}=await import("playwright"),browser=await chromium.launch({headless:true,channel:"chrome"});

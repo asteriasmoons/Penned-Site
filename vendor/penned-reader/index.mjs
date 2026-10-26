@@ -20346,50 +20346,98 @@ function publicExtensions(options) {
     return ["div", { class: "reader-page-card-block" }, result, ...photoCredit(card.remotePhoto), ...photoCredit(record.coverPhoto)];
   };
   const collection = (record) => {
-    const fields = record.fields || [], entries = record.entries || [];
-    const values2 = (entry2) => fields.filter((field) => !entry2.values?.[field.key]?.empty).map((field) => ["div", { class: "reader-collection-value" }, ...propertyValue(entry2.values?.[field.key], field.kind)]);
-    const entry = (row) => linked(row, { class: "penned-collection-card reader-collection-card" }, [
-      ...record.showsCover && cover(row) ? [cover(row)] : [],
-      ["strong", { class: "penned-collection-card-title" }, row.title],
-      ["div", { class: "penned-collection-card-values" }, ...values2(row)],
-      ...photoCredit(row.coverPhoto)
-    ]);
-    let content;
-    if (record.kind === "table") {
-      content = [
-        "div",
-        { class: "reader-table-scroll", tabindex: "0", role: "region", "aria-label": record.name },
-        [
-          "table",
-          { class: "reader-collection-table" },
-          ["thead", {}, ["tr", {}, ["th", { scope: "col" }, "Title"], ...fields.map((field) => ["th", { scope: "col" }, icon(field.icon), ["span", {}, field.name]])]],
-          ["tbody", {}, ...entries.map((row) => [
-            "tr",
-            {},
-            ["td", {}, linked(row, { class: "reader-collection-title" }, [row.title])],
-            ...fields.map((field) => ["td", {}, ...propertyValue(row.values?.[field.key], field.kind)])
-          ])]
-        ]
-      ];
-    } else if (record.kind === "kanban") {
-      content = ["div", { class: "reader-kanban", role: "region", "aria-label": record.name, tabindex: "0" }, ...(record.groups || []).map((group) => {
-        const rows = entries.filter((row) => row.group === group.key);
-        return [
-          "details",
-          { class: "reader-kanban-column", ...group.collapsed ? {} : { open: "" }, style: `--column-color:${validColor(group.color) || "#34363f"};--column-ink:${contrastColor(group.color)}` },
-          ["summary", {}, icon("chevdown"), ["strong", {}, group.name], ["span", { class: "reader-column-count" }, String(rows.length)]],
-          ["div", { class: "reader-kanban-entries" }, ...rows.map(entry), ...!rows.length ? [["p", { class: "reader-empty-collection" }, "No entries"]] : []]
+    const views = record.views?.length ? record.views : [{ ...record, key: "view-0" }];
+    const active = views.find((view) => view.key === record.activeViewKey) || views[0];
+    const kindIcon = (kind) => ({ table: "table", gallery: "layoutgal", kanban: "gridboard" })[kind];
+    const readingIcon = (name, className = "") => ["span", { class: `penned-collection-button ${className}`, "aria-hidden": "true" }, icon(name)];
+    function viewContent(view) {
+      const fields = view.fields || [], entries = view.entries || [];
+      const values2 = (row) => fields.filter((field) => !row.values?.[field.key]?.empty).map((field) => ["div", { class: "penned-collection-value reader-collection-value" }, ...propertyValue(row.values?.[field.key], field.kind)]);
+      let content;
+      if (view.kind === "table") {
+        content = [
+          "div",
+          { class: "penned-collection-scroll reader-collection-table-scroll", tabindex: "0", role: "region", "aria-label": `${record.name}, ${view.viewName}` },
+          [
+            "div",
+            { class: "penned-collection-table reader-collection-table", role: "table", style: `--collection-tracks:220px ${fields.map((field) => ["number", "checkbox"].includes(field.kind) ? "120px" : "180px").join(" ")} 44px` },
+            [
+              "div",
+              { class: "penned-collection-row penned-collection-heading", role: "row" },
+              ["span", { role: "columnheader" }, "Title"],
+              ...fields.map((field) => ["span", { class: "penned-collection-button", role: "columnheader" }, icon(field.icon), ["span", {}, field.name]]),
+              readingIcon("addwavy")
+            ],
+            ...entries.map((row) => [
+              "div",
+              { class: "penned-collection-row", role: "row" },
+              linked(row, { class: "penned-collection-button penned-collection-table-title reader-collection-title", role: "cell" }, [row.title]),
+              ...fields.map((field) => ["div", { class: "penned-collection-button penned-collection-value reader-collection-value", role: "cell" }, ...propertyValue(row.values?.[field.key], field.kind)]),
+              readingIcon("dotswavy")
+            ])
+          ]
         ];
-      })];
-    } else {
-      content = ["div", { class: "penned-collection-gallery reader-gallery", style: `--collection-columns:${Math.min(3, Math.max(1, record.galleryColumns || 2))}` }, ...entries.map(entry)];
+      } else if (view.kind === "kanban") {
+        content = ["div", { class: "reader-kanban", role: "region", "aria-label": `${record.name}, ${view.viewName}`, tabindex: "0" }, ...(view.groups || []).map((group) => {
+          const rows = entries.filter((row) => row.group === group.key);
+          return [
+            "details",
+            { class: "reader-kanban-column", ...group.collapsed ? {} : { open: "" }, style: `--column-color:${validColor(group.color) || "#34363f"};--column-ink:${contrastColor(group.color)}` },
+            ["summary", {}, icon("chevdown"), ["strong", {}, group.name], ["span", { class: "reader-column-count" }, String(rows.length)], readingIcon("addwavy", "reader-column-add")],
+            ["div", { class: "reader-kanban-entries" }, ...rows.map((row) => [
+              "div",
+              { class: "reader-kanban-card" },
+              linked(row, { class: "reader-kanban-title" }, [["span", {}, row.title], icon("chevright")]),
+              ["div", { class: "reader-kanban-values" }, ...fields.filter((field) => !row.values?.[field.key]?.empty).flatMap((field) => {
+                const value = row.values?.[field.key];
+                return (value?.chips?.length ? value.chips : [{ name: value?.text || "", color: "#87B9D5" }]).map((chip) => ["span", { class: "reader-kanban-tag", style: `--chip-color:${validColor(chip.color) || "#87B9D5"}` }, chip.name]);
+              })]
+            ]), ...rows.length ? [readingIcon("addwavy", "reader-kanban-add")] : []]
+          ];
+        })];
+      } else {
+        content = [
+          "div",
+          { class: "penned-collection-gallery-scroll", tabindex: "0", role: "region", "aria-label": `${record.name}, ${view.viewName}` },
+          ["div", { class: "penned-collection-gallery reader-gallery", style: `--collection-columns:${Math.min(3, Math.max(1, view.galleryColumns || 2))}` }, ...entries.map((row) => [
+            "div",
+            { class: "penned-collection-card reader-collection-card" },
+            linked(row, { class: "penned-collection-card-open" }, [
+              ...view.showsCover ? [["div", { class: "penned-collection-cover" }, cover(row) || icon("imagesign")]] : [],
+              ["span", { class: "penned-collection-card-title" }, row.title]
+            ]),
+            ["div", { class: "penned-collection-card-values" }, ...values2(row)],
+            readingIcon("dotswavy", "penned-collection-entry-actions"),
+            ...photoCredit(row.coverPhoto)
+          ])],
+          ...!entries.length ? [["p", { class: "penned-collection-empty" }, "No entries"]] : [],
+          ["div", { class: "penned-collection-footer" }, readingIcon("addwavy")]
+        ];
+      }
+      return ["div", {
+        class: `reader-collection-view${view.compactCards ? " penned-collection-compact" : ""}`,
+        "data-collection-view": view.key,
+        "data-view-kind": view.kind,
+        "data-view-name": view.viewName,
+        ...view.key === active.key ? {} : { hidden: "" }
+      }, content];
     }
     return [
       "section",
-      { class: "penned-collection reader-collection", "data-collection-kind": record.kind },
-      ["header", { class: "penned-collection-header" }, ["strong", { class: "penned-collection-name" }, record.name], ["span", { class: "reader-muted" }, record.viewName]],
-      content,
-      ...!entries.length && record.kind !== "kanban" ? [["p", { class: "reader-empty-collection" }, "No entries"]] : []
+      { class: "penned-collection reader-collection", "data-collection-kind": active.kind, "data-active-view": active.key },
+      [
+        "div",
+        { class: "penned-collection-header" },
+        ["span", { class: "penned-collection-button penned-collection-name" }, record.name],
+        [
+          "details",
+          { class: "reader-view-menu" },
+          ["summary", { class: "penned-collection-button penned-collection-selector", "aria-label": "Collection views" }, ["span", { "data-current-view-name": "" }, active.viewName], icon("chevdown")],
+          ["div", { class: "reader-view-options", role: "group", "aria-label": "Saved collection views" }, ...views.map((view) => ["button", { type: "button", "data-select-collection-view": view.key, "aria-pressed": String(view.key === active.key) }, icon(kindIcon(view.kind)), ["span", {}, view.viewName], ["span", { class: "reader-view-check", "aria-hidden": "true" }, icon("checkwavy")]])]
+        ],
+        readingIcon("dotswavy")
+      ],
+      ...views.map(viewContent)
     ];
   };
   const atoms = [
