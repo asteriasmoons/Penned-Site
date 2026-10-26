@@ -188,13 +188,51 @@ function initializeReader(root: HTMLBodyElement) {
     cleanup.forEach(stop => stop());
   }
   let checking = false;
+  let lastInteraction=0, pendingVersion=false, refreshing=false;
+  const readingKey="penned-reading-"+root.dataset.publication;
+  const touch=()=>{lastInteraction=Date.now();};
+  window.addEventListener("scroll",touch,{passive:true});
+  document.addEventListener("pointerdown",touch,{passive:true});
+  document.addEventListener("keydown",touch);
+  function refreshContent(){
+    if(!pendingVersion||refreshing||unavailable||document.hidden||Date.now()-lastInteraction<1500||dialog.open||!search.hidden||contents?.classList.contains("is-open")||!getSelection()?.isCollapsed
+      ||[...document.querySelectorAll<HTMLMediaElement>("audio,video")].some(media=>!media.paused&&!media.ended))return;
+    refreshing=true;
+    const candidates=[...document.querySelectorAll<HTMLElement>(".reader-content > *, .reader-document-heading")];
+    const block=candidates.find(element=>element.getBoundingClientRect().bottom>70);
+    const heading=[...headings].reverse().find(element=>element.getBoundingClientRect().top<innerHeight);
+    try{sessionStorage.setItem(readingKey,JSON.stringify({y:scrollY,ratio:scrollY/Math.max(1,document.documentElement.scrollHeight-innerHeight),
+      text:block?.textContent?.slice(0,160),index:block?candidates.indexOf(block):-1,offset:block?.getBoundingClientRect().top,heading:heading?.id,headingOffset:heading?.getBoundingClientRect().top,
+      toggles:[...document.querySelectorAll<HTMLDetailsElement>("details.reader-toggle")].map(details=>details.open)}));}catch{}
+    location.reload();
+  }
+  const updateTimer=window.setInterval(refreshContent,1000);cleanup.push(()=>window.clearInterval(updateTimer));
+  try{
+    const saved=sessionStorage.getItem(readingKey);
+    if(saved){sessionStorage.removeItem(readingKey);const position=JSON.parse(saved);
+      document.querySelectorAll<HTMLDetailsElement>("details.reader-toggle").forEach((details,index)=>{if(typeof position.toggles?.[index]==="boolean")details.open=position.toggles[index];});
+      const restore=()=>{
+        const candidates=[...document.querySelectorAll<HTMLElement>(".reader-content > *, .reader-document-heading")];
+        const block=candidates.filter(element=>element.textContent?.slice(0,160)===position.text).sort((a,b)=>Math.abs(candidates.indexOf(a)-position.index)-Math.abs(candidates.indexOf(b)-position.index))[0];
+        const heading=position.heading?document.getElementById(position.heading):null;
+        const target=block||heading;
+        window.scrollTo(0,target?scrollY+target.getBoundingClientRect().top-(block?position.offset:position.headingOffset):position.ratio*Math.max(1,document.documentElement.scrollHeight-innerHeight));
+      };
+      void document.fonts.ready.then(()=>requestAnimationFrame(restore));
+      window.addEventListener("load",restore,{once:true});
+    }
+  }catch{}
   async function checkAccess() {
     if (unavailable || checking || document.hidden) return; checking = true;
     const status = document.querySelector<HTMLElement>("[data-network-status]")!;
     try {
-      const response = await fetch(api, { method: "HEAD", cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer", signal: AbortSignal.timeout(12000) });
+      const response = await fetch(api, { cache: "no-store", credentials: "same-origin", referrerPolicy: "no-referrer", signal: AbortSignal.timeout(12000) });
       if (response.status === 404) revoke();
-      else if (response.ok) status.hidden = true;
+      else if(response.status===401){revoke();location.reload();}
+      else if (response.ok) {
+        status.hidden=true;const current=await response.json();
+        if(Number(current.version)>Number(root.dataset.version)){pendingVersion=true;refreshContent();}
+      }
       else throw new Error("Publication verification unavailable");
     } catch { if (!unavailable) { status.textContent = "Connection unavailable. Showing the opened document."; status.hidden = false; } }
     finally { checking = false; }

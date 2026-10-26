@@ -2,15 +2,18 @@
 import ReaderIcon from "../../components/publishing/ReaderIcon.astro";
 import { reader, presentPublication, photoCredit, publishingProject, iconURL } from "../../lib/public-document.ts";
 import type { PublishedPage } from "../../lib/publishing.ts";
+import { publicationIdentifier, readerCookieName, ReaderAccessRequired } from "../../lib/publishing.ts";
+import ReaderGate from "../../components/publishing/ReaderGate.astro";
 import "../../styles/reader.css";
 
 export const prerender = false;
 const token = Astro.params.token || "";
 let publication: PublishedPage | null = null;
 let unavailable = false;
-if (/^[a-f0-9]{64}$/.test(token)) {
-  try { publication = await reader.read(token, AbortSignal.timeout(15000)); }
-  catch { unavailable = true; }
+let gate: ReaderAccessRequired|null=null;
+if (publicationIdentifier.test(token)) {
+  try { publication = await reader.read(token, AbortSignal.timeout(15000),Astro.cookies.get(readerCookieName(token))?.value); }
+  catch(error) { if(error instanceof ReaderAccessRequired)gate=error;else unavailable = true; }
 }
 let presentation: ReturnType<typeof presentPublication> | null = null;
 if (publication) {
@@ -18,15 +21,15 @@ if (publication) {
   catch { publication = null; unavailable = true; }
 }
 const valid = Boolean(publication && presentation);
-Astro.response.status = valid ? 200 : unavailable ? 503 : 404;
+Astro.response.status = valid ? 200 : gate ? 401 : unavailable ? 503 : 404;
 for (const [name, value] of Object.entries({
   "Cache-Control": "private, no-store, max-age=0", "CDN-Cache-Control": "no-store", "Vercel-CDN-Cache-Control": "no-store",
   "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY",
   "X-Robots-Tag": valid && publication?.settings.allowIndexing ? "index, follow" : "noindex, nofollow",
-  "Content-Security-Policy": `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' ${new URL(publishingProject).origin} https://images.unsplash.com; media-src ${new URL(publishingProject).origin}; connect-src 'self' ${new URL(publishingProject).origin}; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'`,
+  "Content-Security-Policy": `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' ${new URL(publishingProject).origin} https://images.unsplash.com; media-src 'self' ${new URL(publishingProject).origin}; connect-src 'self' ${new URL(publishingProject).origin}; font-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'`,
 })) Astro.response.headers.set(name, value);
 if (unavailable) Astro.response.headers.set("Retry-After", "30");
-const title = valid ? publication!.document.title || "Document" : unavailable ? "Could not load document" : "Document unavailable";
+const title = valid ? publication!.document.title || "Document" : gate ? "Protected Document" : unavailable ? "Could not load document" : "Document unavailable";
 const toc = valid && publication!.settings.showTableOfContents ? presentation!.toc : [];
 const coverCredit = presentation ? photoCredit(presentation.coverPhoto) : null;
 const backdropCredit = presentation ? photoCredit(presentation.outer.photo) : null;
@@ -48,7 +51,7 @@ const paperCredit = presentation ? photoCredit(presentation.paper.photo) : null;
     <meta property="og:title" content={title} />
     {valid && publication!.document.subtitle && <meta name="description" content={publication!.document.subtitle} />}
   </head>
-  <body class="penned-reader" data-publication={valid ? token : undefined} data-api={valid ? `${publishingProject}/functions/v1/penned-publishing/public/${token}` : undefined}
+  <body class="penned-reader" data-publication={valid ? token : undefined} data-api={valid ? `/p/${token}/status` : undefined} data-version={publication?.version}
     data-expires={publication?.settings.expiresAt || undefined}>
     <a class="reader-skip" href="#document">Skip to document</a>
     <header class="reader-header">
@@ -91,7 +94,7 @@ const paperCredit = presentation ? photoCredit(presentation.paper.photo) : null;
             </>}
             <div class="tiptap-editor reader-content" set:html={html}></div>
           </article>)}
-          <footer class="reader-document-footer"><a class="reader-footer-brand" href="/"><img src="/images/branding/penned.png" alt="" width="20" height="20" />Published with Penned</a>
+          <footer class="reader-document-footer">{publication!.settings.showBranding!==false&&<a class="reader-footer-brand" href="/"><img src="/images/branding/penned.png" alt="" width="20" height="20" />Published with Penned</a>}
             {[backdropCredit, paperCredit].filter(Boolean).map(credit => <small class="reader-photo-credit">Photo by <a href={credit!.photographerURL} rel="noopener noreferrer" target="_blank">{credit!.name}</a> on <a href={credit!.sourceURL} rel="noopener noreferrer" target="_blank">Unsplash</a></small>)}
           </footer>
         </main>
@@ -109,7 +112,7 @@ const paperCredit = presentation ? photoCredit(presentation.paper.photo) : null;
         </div>
         <div class="reader-media-viewport"><img data-media-image alt="" /></div>
       </dialog>
-    </> : <main class="reader-state" id="document" tabindex="-1"><ReaderIcon name="linedpages" /><h1>{title}</h1>
+    </> : gate ? <ReaderGate password={gate.password} email={gate.email} token={token} /> : <main class="reader-state" id="document" tabindex="-1"><ReaderIcon name="linedpages" /><h1>{title}</h1>
       <p>{unavailable ? "Please try opening this document again." : "This link may have been unpublished, expired, or replaced."}</p>
       {unavailable && <a class="reader-retry" href={Astro.url.pathname}>Try Again</a>}
     </main>}

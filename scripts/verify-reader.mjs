@@ -72,6 +72,70 @@ if (mode === "prepare") {
     console.log("Prepared saved native documents through the actual publishing API; no mock responses or user documents used.");
     console.log(Object.fromEntries(["dark", "light"].map(name => [name, base + "/p/" + state.publications[name].token])));
   } catch (error) { console.error("Preparation failed; fixture IDs remain in the restricted state file for cleanup."); throw error; }
+} else if(mode === "controls") {
+  const {chromium}=await import("playwright"),browser=await chromium.launch({headless:true,channel:"chrome"});
+  const owner=await tokenFor(state.users[0]);
+  let publication=await call("publications/"+state.publications.dark.id,"GET",owner);
+  const fixture=JSON.parse(await readFile(join(directory,"dark.json"),"utf8"));
+  const page=await browser.newPage({viewport:{width:390,height:844}});
+  const path=()=>base+"/p/"+(publication.customPath||publication.token);
+  async function mutate(action,input={}){
+    publication=await call(`publications/${publication.id}/${action}`,"POST",owner,{expectedVersion:publication.version,...input});
+    state.publications.dark=publication;await save();
+  }
+  try{
+    await mutate("access",{customPath:"",password:"",emails:[],emailDomains:[]});
+    publication=await call("publications/"+publication.id,"PUT",owner,{action:"publish",expectedVersion:publication.version,document:fixture.document,settings:{showTitle:true,showBranding:true,hideHashtags:false,allowFollowLinkedContent:false,expiresAt:new Date(Date.now()+2*3600000).toISOString()}});
+    state.publications.dark=publication;await save();
+    const previousTime=publication.publishedAt;
+    publication=await call("publications/"+publication.id+"/baseline","POST",owner,{expectedVersion:publication.version,document:fixture.document,sourceFingerprint:"a".repeat(64)});
+    assert.equal(publication.sourceFingerprint,"a".repeat(64));assert.equal(publication.publishedAt,previousTime);
+    state.publications.dark=publication;await save();
+    await page.goto(path(),{waitUntil:"networkidle"});
+    await page.getByRole("heading",{name:"Tables and collections",exact:true}).scrollIntoViewIfNeeded();
+    const top=await page.getByRole("heading",{name:"Tables and collections",exact:true}).evaluate(node=>node.getBoundingClientRect().top);
+    const changed=structuredClone(fixture.document);changed.title="Automatically Updated Native Publication";
+    changed.content.content.push({type:"paragraph",content:[{type:"text",text:"#hiddenTag Updated saved writing."}]});
+    publication=await call("publications/"+publication.id,"PUT",owner,{action:"update",expectedVersion:publication.version,document:changed,sourceFingerprint:"e".repeat(64)});
+    state.publications.dark=publication;await save();
+    await page.evaluate(()=>window.dispatchEvent(new Event("online")));
+    await page.waitForFunction(version=>Number(document.body.dataset.version)===version,publication.version,{timeout:20000});
+    assert.match(await page.title(),/Automatically Updated/);
+    assert.ok(Math.abs(await page.getByRole("heading",{name:"Tables and collections",exact:true}).evaluate(node=>node.getBoundingClientRect().top)-top)<100,"Reader lost its position");
+    console.log("PASS already-open reader receives saved updates and retains its reading position");
+    await mutate("settings",{settings:{showBranding:false,hideHashtags:true}});
+    await page.reload({waitUntil:"networkidle"});
+    assert.equal(await page.locator(".reader-footer-brand").count(),0);
+    assert.doesNotMatch(await page.locator(".reader-content").allTextContents().then(xs=>xs.join("")),/#hiddenTag/);
+    await mutate("access",{customPath:"reader-controls-"+state.run.slice(0,8),password:"test-reader-password"});
+    assert.equal(publication.passwordSet,true);assert.doesNotMatch(JSON.stringify(publication),/passwordHash|passwordSalt/);
+    const media=fixture.document.media.find(asset=>asset.mimeType==="image/png");
+    assert.equal((await fetch(`${api}/public/${publication.token}/media/${media.id}`)).status,401);
+    assert.equal((await page.goto(path(),{waitUntil:"networkidle"})).status(),401);
+    assert.equal(await page.locator(".reader-content").count(),0);
+    await page.locator("input[name=password]").fill("test-reader-password");
+    await page.locator("button[type=submit]").click();
+    await page.waitForSelector(".reader-content");
+    const cookie=(await page.context().cookies()).find(cookie=>cookie.name.startsWith("penned_reader_"));
+    assert.ok(cookie?.httpOnly);if(base.startsWith("https:"))assert.ok(cookie.secure);
+    await page.locator("[data-reader-image]").first().scrollIntoViewIfNeeded();
+    await page.waitForFunction(()=>document.querySelector("[data-reader-image] img").naturalWidth>0);
+    await mkdir(join(directory,"controls"),{recursive:true});await page.screenshot({path:join(directory,"controls/password-authorized.png")});
+    console.log("PASS custom paths, password gate, HttpOnly reader cookie and protected actual media proxy");
+    const visitor=checked(await admin.auth.admin.getUserById(state.users[1])).user;
+    await mutate("access",{emails:[visitor.email],emailDomains:[]});
+    await page.reload({waitUntil:"networkidle"});assert.equal(await page.locator(".reader-content").count(),0);
+    const link=checked(await admin.auth.admin.generateLink({type:"magiclink",email:visitor.email}));
+    assert.ok(link.properties.email_otp);
+    await page.locator("input[name=password]").fill("test-reader-password");await page.locator("input[name=email]").fill(visitor.email);
+    await page.locator("input[name=code]").fill(link.properties.email_otp);await page.locator("button[type=submit]").click();
+    await page.waitForSelector(".reader-content");
+    console.log("PASS real Supabase email-code verification plus password; access-policy changes revoke prior reader grants");
+    await mutate("unpublish");
+    assert.equal((await page.request.get(path()+"/media/"+media.id)).status(),404);
+    assert.equal((await page.goto(path())).status(),404);
+    console.log("PASS unpublish revokes the authenticated reader and protected media; real email delivery remains a manual inbox check");
+  }finally{await browser.close();}
 } else if (mode === "cleanup") {
   const ids = Object.values(state.publications).map(value => value.id);
   if (ids.length) {

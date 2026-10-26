@@ -11,6 +11,11 @@ a { color: inherit; }
 button { color: inherit; }
 [hidden] { display: none !important; }
 :focus-visible { outline: 2px solid #bc76ff; outline-offset: 4px; }
+.reader-gate form { display: grid; gap: 18px; width: min(100%, 360px); text-align: left; }
+.reader-gate label { display: grid; gap: 8px; font-size: 14px; }
+.reader-gate input { min-height: 44px; padding: 10px 12px; border: 1px solid #ffffff25; border-radius: 8px; background: #ffffff09; color: #fff; width: 100%; }
+.reader-gate button { min-height: 44px; border: 0; border-radius: 8px; background: #bc76ff; color: #17131f; font-weight: 800; cursor: pointer; padding: 10px; }
+.reader-gate button:disabled { opacity: .5; cursor: wait; }
 .reader-icon { display: inline-block; flex: 0 0 auto; width: 21px; height: 21px; background: currentColor; mask: var(--reader-icon) center/contain no-repeat; -webkit-mask: var(--reader-icon) center/contain no-repeat; }
 .reader-emoji { display: inline-flex; align-items: center; justify-content: center; font-size: 22px; line-height: 1; }
 .reader-skip { position: fixed; left: 16px; top: -100px; z-index: 100; padding: 10px 16px; background: #242424; border-radius: 6px; }

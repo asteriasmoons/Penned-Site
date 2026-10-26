@@ -17,7 +17,7 @@ export function presentPublication(page: PublishedPage, token: string) {
   const assets = new Set(document.media.map(asset => asset.id.toLowerCase()));
   function mediaURL(id: string) {
     if (!assets.has(id.toLowerCase())) throw new Error("Unreferenced publication media");
-    return reader.mediaURL(token, id);
+    return `/p/${token}/media/${id.toLowerCase()}`;
   }
   function background(value: unknown, fallback: string): { css: string; blur: boolean; faded: boolean; photo: ObjectValue } {
     const source = object(value), primary = validColor(source.colorHex) || fallback, secondary = validColor(source.secondaryColorHex) || primary;
