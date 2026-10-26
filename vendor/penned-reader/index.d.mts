@@ -2,6 +2,7 @@ export interface ReaderOptions {
   mediaURL(id: string): string;
   iconURL(name: string): string | undefined;
   allowFollowLinkedContent?: boolean;
+  publicationURL?: string;
 }
 export function renderPublicContent(document: { content: Record<string, unknown>; media: Array<{ id: string; name: string; mimeType: string; size: number }> }, options: ReaderOptions): {
   toc: Array<{ id: string; level: number; text: string }>;

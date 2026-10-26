@@ -48,6 +48,10 @@ button { color: inherit; }
 .reader-cover[data-cover-theme="lunarClouds"], .penned-document .reader-theme-cover[data-cover-theme="lunarClouds"] { background: linear-gradient(135deg, #09213a, #6928a8); }
 .reader-cover[data-cover-theme="neonCode"], .penned-document .reader-theme-cover[data-cover-theme="neonCode"] { background: linear-gradient(135deg, #000, #061b1b, #160b28); }
 .reader-document-heading { margin: 0 0 22px; padding-bottom: 18px; border-bottom: 1px solid color-mix(in srgb, var(--vellix-primary-text) 10%, transparent); }
+.reader-page-navigation { margin: 0 0 16px; font-size: 13px; font-weight: 600; }
+.reader-page-navigation a { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; text-decoration: none; }
+.reader-page-navigation span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reader-page-navigation .reader-icon { width: 16px; height: 16px; }
 .reader-title-row { display: flex; gap: 16px; align-items: start; }
 .reader-title-row h1 { flex: 1; min-width: 0; margin: 0; font: 900 28px/1.25 var(--vellix-font-family); letter-spacing: 0; overflow-wrap: anywhere; }
 .reader-document-icon { margin-top: 5px; width: 23px; height: 23px; }

@@ -3,6 +3,17 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createPublishingReader, ReaderAccessRequired } from "../src/lib/publishing.ts";
 
+test("included child pages use the parent publication and its existing reader grant, not separate publication tokens",async()=>{
+  const page="page-"+"a".repeat(32),grant="prg_"+"b".repeat(64);
+  const reader=createPublishingReader("https://project.supabase.co",async(url,options)=>{
+    assert.equal(url,"https://project.supabase.co/functions/v1/penned-publishing/public/a1b2c3d4/pages/"+page);
+    assert.deepEqual(options?.headers,{"X-Penned-Reader":grant});
+    return Response.json({version:2,document:{schemaVersion:1,content:{type:"doc"},media:[]},settings:{allowFollowLinkedContent:true},navigation:{parentTitle:"Root",parentPage:null}});
+  });
+  assert.equal((await reader.read("a1b2c3d4",undefined,grant,page))?.navigation?.parentTitle,"Root");
+  await assert.rejects(reader.read("a1b2c3d4",undefined,grant,"../private-document"));
+});
+
 test("access form uses the external reader entry under the strict production CSP", async () => {
   const gate=await readFile(new URL("../src/components/publishing/ReaderGate.astro",import.meta.url),"utf8");
   const reader=await readFile(new URL("../src/scripts/public-reader.ts",import.meta.url),"utf8");

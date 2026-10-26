@@ -2,7 +2,7 @@
 import ReaderIcon from "../../components/publishing/ReaderIcon.astro";
 import { reader, presentPublication, photoCredit, publishingProject, iconURL } from "../../lib/public-document.ts";
 import type { PublishedPage } from "../../lib/publishing.ts";
-import { publicationIdentifier, readerCookieName, ReaderAccessRequired } from "../../lib/publishing.ts";
+import { publicationIdentifier, readerCookieName, ReaderAccessRequired, linkedPageKey } from "../../lib/publishing.ts";
 import ReaderGate from "../../components/publishing/ReaderGate.astro";
 import "../../styles/reader.css";
 
@@ -11,11 +11,12 @@ if (Astro.url.hostname === "penned-site-pi.vercel.app") {
   return Astro.redirect("https://www.penned.im" + Astro.url.pathname + Astro.url.search, 308);
 }
 const token = Astro.params.token || "";
+const pageKey = Astro.url.searchParams.get("page") || undefined;
 let publication: PublishedPage | null = null;
 let unavailable = false;
 let gate: ReaderAccessRequired|null=null;
-if (publicationIdentifier.test(token)) {
-  try { publication = await reader.read(token, AbortSignal.timeout(15000),Astro.cookies.get(readerCookieName(token))?.value); }
+if (publicationIdentifier.test(token) && (pageKey == null || linkedPageKey.test(pageKey))) {
+  try { publication = await reader.read(token, AbortSignal.timeout(15000),Astro.cookies.get(readerCookieName(token))?.value,pageKey); }
   catch(error) { if(error instanceof ReaderAccessRequired)gate=error;else unavailable = true; }
 }
 let presentation: ReturnType<typeof presentPublication> | null = null;
@@ -54,7 +55,7 @@ const paperCredit = presentation ? photoCredit(presentation.paper.photo) : null;
     <meta property="og:title" content={title} />
     {valid && publication!.document.subtitle && <meta name="description" content={publication!.document.subtitle} />}
   </head>
-  <body class="penned-reader" data-publication={valid ? token : undefined} data-api={valid ? `/p/${token}/status` : undefined} data-version={publication?.version}
+  <body class="penned-reader" data-publication={valid ? token : undefined} data-page={valid ? pageKey : undefined} data-api={valid ? `/p/${token}/status${pageKey ? `?page=${pageKey}` : ""}` : undefined} data-version={publication?.version}
     data-expires={publication?.settings.expiresAt || undefined}>
     <a class="reader-skip" href="#document">Skip to document</a>
     <header class="reader-header">
@@ -84,6 +85,7 @@ const paperCredit = presentation ? photoCredit(presentation.paper.photo) : null;
         <main id="document" class="reader-document" tabindex="-1" aria-label={title}>
           {presentation.segments.map((html, index) => <article class="reader-paper penned-document" style={presentation!.styles} data-paper-blur={presentation!.paper.blur} data-paper-faded={presentation!.paper.faded} data-document-scheme={presentation!.light ? "light" : "dark"} aria-label={index ? `Page ${index + 1}` : title}>
             {index === 0 && <>
+              {publication!.navigation && <nav class="reader-page-navigation" aria-label="Parent page"><a data-reader-linked href={`/p/${token}${publication!.navigation.parentPage ? `?page=${publication!.navigation.parentPage}` : ""}`}><ReaderIcon name="chevleft" /><span>{publication!.navigation.parentTitle || "Document"}</span></a></nav>}
               {presentation!.showCover && <div class="reader-cover" data-cover-theme={presentation!.coverTheme}>
                 {presentation!.cover ? <img src={presentation!.cover} alt="" fetchpriority="high" decoding="async" /> : <img class="reader-cover-art" src={iconURL(presentation!.coverTheme === "neonCode" ? "codewindow" : "moonzs")} alt="" />}
               </div>}

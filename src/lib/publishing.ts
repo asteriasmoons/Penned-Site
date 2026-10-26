@@ -1,6 +1,7 @@
 export interface PublishedPage {
   version: number;
   updatedAt: string;
+  navigation?: { parentPage: string | null; parentTitle: string };
   document: {
     schemaVersion: 1;
     title: string;
@@ -16,6 +17,7 @@ export interface PublishedPage {
 }
 
 export const publicationIdentifier = /^(?:[a-f0-9]{64}|[a-z0-9][a-z0-9-]{1,78}[a-z0-9])$/;
+export const linkedPageKey = /^page-[a-f0-9]{32}$/;
 export const readerCookieName = (identifier: string) => "penned_reader_" + identifier;
 export class ReaderAccessRequired extends Error {
   password: boolean; email: boolean;
@@ -31,8 +33,9 @@ export function createPublishingReader(projectURL: string, fetchImplementation: 
     return token;
   }
   return {
-    async read(token: string, signal?: AbortSignal, readerToken?: string): Promise<PublishedPage | null> {
-      const response = await fetchImplementation(root + checkedToken(token), { signal, credentials: "omit", referrerPolicy: "no-referrer", redirect: "error", cache: "no-store", headers: readerToken ? { "X-Penned-Reader": readerToken } : undefined });
+    async read(token: string, signal?: AbortSignal, readerToken?: string, page?: string): Promise<PublishedPage | null> {
+      if (page != null && !linkedPageKey.test(page)) throw new Error("Invalid linked page");
+      const response = await fetchImplementation(root + checkedToken(token) + (page ? "/pages/" + page : ""), { signal, credentials: "omit", referrerPolicy: "no-referrer", redirect: "error", cache: "no-store", headers: readerToken ? { "X-Penned-Reader": readerToken } : undefined });
       if(response.status===401){const gate=await response.json();if(gate.error==="access_required")throw new ReaderAccessRequired(gate.password===true,gate.email===true);}
       if (response.status === 404) return null;
       if (!response.ok) throw new Error("The published document could not be loaded");

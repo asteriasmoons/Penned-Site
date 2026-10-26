@@ -12,6 +12,17 @@ function render(content: unknown[], media: unknown[] = [], settings = {}) {
 }
 function document(html: string) { const window = new Window({ settings: { disableJavaScriptEvaluation: true } }); window.document.body.innerHTML = html; return window.document; }
 
+test("included child pages and every collection view link inside the parent publication without separately published destinations",()=>{
+  const targetPage="page-"+"a".repeat(32),settings={allowFollowLinkedContent:true,publicationURL:"/p/a1b2c3d4"};
+  const nodes:any[]=[{type:"publishedPage",attrs:{preview:{title:"Child",excerpt:"Saved preview",targetPage}}}];
+  for(const kind of ["gallery","table","kanban"])nodes.push({type:"publishedCollection",attrs:{projection:{name:"Entries",viewName:kind,kind,fields:[],groups:[{key:"group-0",name:"Main",color:"#34363F"}],entries:[{title:"Entry",values:{},group:"group-0",targetPage}]}}});
+  const doc=document(render(nodes,[],settings).segments.join(""));
+  assert.equal(doc.querySelectorAll('a[data-reader-linked][href="/p/a1b2c3d4?page='+targetPage+'"]').length,4);
+  assert.equal(document(render(nodes,[],{...settings,allowFollowLinkedContent:false}).segments.join("")).querySelectorAll("a[data-reader-linked]").length,0);
+  const back=document(render([{type:"publishedPage",attrs:{preview:{title:"Root",targetPage:"root"}}}],[],settings).segments[0]);
+  assert.equal(back.querySelector("a[data-reader-linked]")!.getAttribute("href"),"/p/a1b2c3d4");
+});
+
 test("the actual editor serializer renders formatting, unique contents anchors, toggles and real paper breaks", () => {
   const result = render([{ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Repeated heading" }] },
     { type: "toggleItem", attrs: { open: false }, content: [paragraph("Toggle title"), paragraph("Selectable text")] },

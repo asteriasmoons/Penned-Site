@@ -1,5 +1,5 @@
 import type { APIRoute } from "astro";
-import { publicationIdentifier, readerCookieName } from "../../../lib/publishing.ts";
+import { publicationIdentifier, readerCookieName, linkedPageKey } from "../../../lib/publishing.ts";
 import { publishingProject } from "../../../lib/public-document.ts";
 export const prerender=false;
 const headers={"Cache-Control":"private, no-store, max-age=0","CDN-Cache-Control":"no-store","Vercel-CDN-Cache-Control":"no-store","X-Content-Type-Options":"nosniff","Referrer-Policy":"no-referrer"};
@@ -7,7 +7,11 @@ export const ALL: APIRoute = async context=>{
   const {params,request,cookies}=context,token=params.token||"",resource=params.resource||"";
   if(!publicationIdentifier.test(token))return new Response(null,{status:404,headers});
   let path="",method=request.method;
-  if(resource==="status"&&method==="GET"){path="";method="HEAD";}
+  if(resource==="status"&&method==="GET"){
+    const page=new URL(request.url).searchParams.get("page");
+    if(page&&!linkedPageKey.test(page))return new Response(null,{status:404,headers});
+    path=page?"/pages/"+page:"";method="HEAD";
+  }
   else if(/^media\/[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/i.test(resource)&&["GET","HEAD"].includes(method))path="/"+resource;
   else if(["access","email"].includes(resource)&&method==="POST"){
     if(request.headers.get("origin")!==new URL(request.url).origin)return new Response(null,{status:403,headers});

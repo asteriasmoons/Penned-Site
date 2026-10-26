@@ -20295,8 +20295,10 @@ function publicExtensions(options) {
     return source ? ["span", { class: "reader-icon", "aria-hidden": "true", style: `--reader-icon:url(${JSON.stringify(source)})` }] : ["span", { class: "reader-emoji", "aria-hidden": "true" }, String(name || "")];
   };
   const linked = (record, attributes, children) => {
-    const canFollow = options.allowFollowLinkedContent && /^[a-z0-9][a-z0-9-]{1,78}[a-z0-9]$/.test(record.targetToken || "");
-    return [canFollow ? "a" : "div", { ...attributes, ...canFollow ? { href: `/p/${record.targetToken}`, "data-reader-linked": "", rel: "noreferrer" } : {} }, ...children];
+    const included = record.targetPage === "root" || /^page-[a-f0-9]{32}$/.test(record.targetPage || "");
+    const href = included && options.publicationURL ? options.publicationURL + (record.targetPage === "root" ? "" : `?page=${record.targetPage}`) : /^[a-z0-9][a-z0-9-]{1,78}[a-z0-9]$/.test(record.targetToken || "") ? `/p/${record.targetToken}` : null;
+    const canFollow = options.allowFollowLinkedContent && href;
+    return [canFollow ? "a" : "div", { ...attributes, ...canFollow ? { href, "data-reader-linked": "", rel: "noreferrer" } : {} }, ...children];
   };
   const cover = (record) => {
     if (record.cover?.mediaID) return ["img", { class: "reader-entry-cover", src: media(record.cover.mediaID), alt: "", loading: "lazy", decoding: "async" }];

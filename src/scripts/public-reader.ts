@@ -259,7 +259,7 @@ function initializeReader(root: HTMLBodyElement) {
   }
   let checking = false;
   let lastInteraction=0, pendingVersion=false, refreshing=false;
-  const readingKey="penned-reading-"+root.dataset.publication;
+  const readingKey="penned-reading-"+root.dataset.publication+(root.dataset.page?":"+root.dataset.page:"");
   const touch=()=>{lastInteraction=Date.now();};
   window.addEventListener("scroll",touch,{passive:true});
   document.addEventListener("pointerdown",touch,{passive:true});

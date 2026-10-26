@@ -34,7 +34,7 @@ export function presentPublication(page: PublishedPage, token: string) {
   const rgb = Number.parseInt(String(schemeBackground.colorHex || "#242424").replace("#", "").slice(0, 6), 16);
   const light = ((rgb >> 16) & 255) * .2126 + ((rgb >> 8) & 255) * .7152 + (rgb & 255) * .0722 > 140;
   const styles = `--vellix-primary-text:${ink};--vellix-font-family:${font};--vellix-neutral-rgb:${light ? "33,29,41" : "255,255,255"};--vellix-secondary-text:${light ? "#686171" : "#9b9b9f"};--vellix-property-accent:${light ? "#7955a0" : "#b59ad9"};--vellix-link-color:${light ? "#7833bc" : "#8fe9ff"};--vellix-table-default-header:${light ? "#E7DEF2" : "#066DB0"};--reader-board-paper:${light ? "#FCFAFF" : "#2C2C2E"};--reader-board-ink:${light ? "#211D29" : "#E4E6F1"};--reader-paper-background:${paper.css};color:${ink};font-family:${font};color-scheme:${light ? "light" : "dark"}`;
-  const rendered = renderPublicContent(document, { mediaURL, iconURL, allowFollowLinkedContent: settings.allowFollowLinkedContent === true });
+  const rendered = renderPublicContent(document, { mediaURL, iconURL, allowFollowLinkedContent: settings.allowFollowLinkedContent === true, publicationURL: `/p/${token}` });
   const coverPhoto = object(appearance.coverPhoto);
   const cover = document.cover?.mediaID ? mediaURL(String(document.cover.mediaID)) : safePhoto(coverPhoto.imageURL);
   const showCover = appearance.showsCover === true || (appearance.showsCover == null && appearance.themeID != null);
