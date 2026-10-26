@@ -79,7 +79,6 @@ const paperCredit = presentation ? photoCredit(presentation.paper.photo) : null;
       <p class="reader-network-status" data-network-status role="status" hidden></p>
       <div class:list={["reader-layout", { "has-contents": toc.length > 0 }]} data-reader-layout>
         {toc.length > 0 && <aside class="reader-toc" id="reader-toc" aria-label="Table of contents">
-          <div class="reader-toc-heading"><strong>Contents</strong><button class="reader-icon-button" type="button" data-close-contents title="Close contents" aria-label="Close contents"><ReaderIcon name="xmarkwavy" /></button></div>
           <nav>{toc.map(item => <a href={`#${item.id}`} style={`--heading-level:${Math.min(3, item.level)}`} data-toc-link>{item.text || "Untitled heading"}</a>)}</nav>
         </aside>}
         <main id="document" class="reader-document" tabindex="-1" aria-label={title}>
