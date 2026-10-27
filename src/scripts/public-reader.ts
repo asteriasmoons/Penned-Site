@@ -254,6 +254,7 @@ function initializeReader(root: HTMLBodyElement) {
     const heading = document.createElement("h1"), message = document.createElement("p");
     heading.textContent = "Document unavailable"; message.textContent = "This link may have been unpublished, expired, or replaced."; main.append(heading, message);
     document.querySelector("[data-reader-layout]")?.replaceWith(main);
+    document.querySelectorAll(".reader-backdrop,.reader-theme-pattern").forEach(element => element.remove());
     document.querySelector("[data-reader-title]")!.textContent = "";
     document.title = "Document unavailable | Penned"; search.hidden = true; openSearch.hidden = true; if (openContents) openContents.hidden = true;
     document.querySelector<HTMLElement>("[data-network-status]")!.hidden = true;
