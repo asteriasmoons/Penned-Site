@@ -1,4 +1,5 @@
 import { createReaderNavigation } from "./reader-navigation";
+import "../../vendor/penned-reader/text-gradient-paint.js";
 
 // Keep the access handler in this external entry: Astro inlines small component
 // scripts in production, which the reader's strict script-src policy rejects.
@@ -40,6 +41,9 @@ function initializeReader(root: HTMLBodyElement) {
   const openContents = document.querySelector<HTMLButtonElement>("[data-open-contents]");
   let unavailable = false;
   const cleanup: Array<() => void> = [];
+  const gradientPaint = (globalThis as unknown as { PennedTextGradientPainter?: { create(root: Element): { destroy(): void } } })
+    .PennedTextGradientPainter?.create(document.querySelector(".reader-document") || root);
+  if (gradientPaint) cleanup.push(() => gradientPaint.destroy());
   const collections = [...document.querySelectorAll<HTMLElement>(".reader-collection")];
   function updateGalleryFade(viewport: HTMLElement) {
     viewport.style.setProperty("--gallery-start-opacity", viewport.scrollTop > 1 ? "0" : "1");
