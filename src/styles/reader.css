@@ -42,9 +42,9 @@ button { color: inherit; }
 .reader-paper[data-paper-faded="true"]::before { opacity: .35; }
 .reader-paper[data-paper-blur="true"]::before { filter: blur(12px); transform: scale(1.04); }
 .reader-paper .reader-content { min-width: 0; max-width: 720px; overflow-wrap: anywhere; }
-.reader-cover { position: relative; height: 300px; border-radius: 8px; overflow: hidden; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #121416, #2a2b31); }
-.reader-cover>img { display: block; height: 100%; width: 100%; object-fit: cover; }
-.reader-cover>img.reader-cover-art { width: 44%; height: 54%; object-fit: contain; filter: drop-shadow(0 0 26px #8fe9ff60); }
+.reader-cover { position: relative; width: 100%; aspect-ratio: 1.78; border-radius: 10px; overflow: hidden; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #121416, #2a2b31); }
+.reader-cover>img { position: absolute; inset: 0; display: block; height: 100%; width: 100%; object-fit: cover; }
+.reader-cover>img.reader-cover-art { inset: 50% auto auto 50%; transform: translate(-50%, -50%); width: 44%; height: 54%; object-fit: contain; filter: drop-shadow(0 0 26px #8fe9ff60); }
 .reader-cover[data-cover-theme="lunarClouds"], .penned-document .reader-theme-cover[data-cover-theme="lunarClouds"] { background: linear-gradient(135deg, #09213a, #6928a8); }
 .reader-cover[data-cover-theme="neonCode"], .penned-document .reader-theme-cover[data-cover-theme="neonCode"] { background: linear-gradient(135deg, #000, #061b1b, #160b28); }
 .reader-document-heading { margin: 0 0 22px; padding-bottom: 18px; border-bottom: 1px solid color-mix(in srgb, var(--vellix-primary-text) 10%, transparent); }
@@ -131,6 +131,7 @@ button { color: inherit; }
 .penned-document table[data-rowless="true"] { border-top-style: dashed; }
 .penned-document .reader-property .vellix-property-name { display: flex; align-items: center; gap: 8px; cursor: default; }
 .penned-document .reader-property .vellix-property-value { padding-block: 9px; flex-wrap: wrap; }
+.penned-document .reader-property .penned-collection-chip { border-radius: 999px; }
 .penned-document .reader-property .reader-icon { width: 20px; height: 20px; }
 .penned-document .reader-component { margin-block: 14px; }
 .penned-document .reader-component-label { display: block; margin-bottom: 8px; font-size: 14px; }
@@ -142,6 +143,7 @@ button { color: inherit; }
 .penned-document .reader-component-choice.is-selected { background: var(--vellix-primary-text); color: var(--vellix-component-selected-text, #17131f); font-weight: 700; }
 .penned-document .reader-component-choice .reader-icon { width: 15px; height: 15px; }
 .penned-document .penned-inline-tag { padding: 1px 3px; border-radius: 3px; color: var(--vellix-property-accent); background: color-mix(in srgb, var(--vellix-property-accent) 14%, transparent); font-weight: 700; }
+.penned-document[data-document-font="rounded"] .penned-inline-tag { font-weight: 400; }
 .penned-document .reader-muted { opacity: .5; }
 .penned-document .reader-content .reader-page { text-decoration: none; user-select: text; -webkit-user-select: text; cursor: default; margin: 12px 0; }
 .penned-document .reader-content a.reader-page { cursor: pointer; }
@@ -239,7 +241,7 @@ button { color: inherit; }
   .reader-layout { padding: 18px 12px 0; }
   .reader-paper { padding: 20px; }
   .reader-title-row h1 { font-size: 25px; }
-  .reader-cover { height: 190px; margin-bottom: 18px; }
+  .reader-cover { margin-bottom: 18px; }
   .reader-search { top: 64px; right: 8px; width: calc(100% - 16px); gap: 4px; padding: 6px 8px; }
   .reader-search> .reader-icon { display: none; }
   .reader-search-count { width: 56px; flex-basis: 56px; font-size: 10px; }
@@ -248,6 +250,7 @@ button { color: inherit; }
   .reader-media-toolbar>[data-media-counter] { margin-right: 2px; font-size: 10px; }
   .reader-media-viewport { padding: 12px; }
 }
+@media (max-width: 619px) { .reader-cover { border-radius: 8px; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } .reader-dot-spinner i { opacity: .7; } }
 @media print {
   .reader-header, .reader-toc, .reader-search, .reader-document-footer, .reader-drawer-shade, .reader-backdrop, .reader-theme-pattern { display: none !important; }

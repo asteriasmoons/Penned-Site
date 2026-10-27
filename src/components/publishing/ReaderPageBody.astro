@@ -38,7 +38,7 @@ const paperCredit=presentation?photoCredit(presentation.paper.photo):null;
           <nav>{toc.map(item => <a href={`#${item.id}`} style={`--heading-level:${Math.min(3, item.level)}`} data-toc-link>{item.text || "Untitled heading"}</a>)}</nav>
         </aside>}
         <main id="document" class="reader-document" tabindex="-1" aria-label={title}>
-          {presentation.segments.map((html, index) => <article class="reader-paper penned-document" style={presentation!.styles} data-paper-blur={presentation!.paper.blur} data-paper-faded={presentation!.paper.faded} data-document-scheme={presentation!.light ? "light" : "dark"} aria-label={index ? `Page ${index + 1}` : title}>
+          {presentation.segments.map((html, index) => <article class="reader-paper penned-document" style={presentation!.styles} data-paper-blur={presentation!.paper.blur} data-paper-faded={presentation!.paper.faded} data-document-scheme={presentation!.light ? "light" : "dark"} data-document-font={String(publication!.document.appearance.fontStyle || "rounded")} aria-label={index ? `Page ${index + 1}` : title}>
             {index === 0 && <>
               {publication!.navigation && <nav class="reader-page-navigation" aria-label="Parent page"><a data-reader-linked href={`/p/${token}${publication!.navigation.parentPage ? `?page=${publication!.navigation.parentPage}` : ""}`}><ReaderIcon name="chevleft" /><span>{publication!.navigation.parentTitle || "Document"}</span></a></nav>}
               {presentation!.showCover && <div class="reader-cover" data-cover-theme={presentation!.coverTheme}>
