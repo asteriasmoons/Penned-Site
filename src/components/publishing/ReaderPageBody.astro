@@ -17,6 +17,7 @@ const paperCredit=presentation?photoCredit(presentation.paper.photo):null;
       <a class="reader-brand" href="/" aria-label="Penned homepage"><img src="/images/branding/penned.png" alt="" width="28" height="28" /><span>Penned</span></a>
       <span class="reader-header-title" data-reader-title>{valid ? title : ""}</span>
       <div class="reader-header-actions">
+        {valid && publication!.navigation && <nav class="reader-page-navigation" aria-label="Parent page"><a class="reader-icon-button" data-reader-linked href={`/p/${token}${publication!.navigation.parentPage ? `?page=${publication!.navigation.parentPage}` : ""}`} title={`Back to ${publication!.navigation.parentTitle || "Document"}`} aria-label={`Back to ${publication!.navigation.parentTitle || "Document"}`}><ReaderIcon name="chevleft" /></a></nav>}
         {valid && <button class="reader-icon-button" type="button" data-open-search title="Search document" aria-label="Search document" aria-expanded="false" aria-controls="reader-search"><ReaderIcon name="searchwavy" /></button>}
         {toc.length > 0 && <button class="reader-icon-button reader-contents-button" type="button" data-open-contents title="Table of contents" aria-label="Table of contents" aria-expanded="false" aria-controls="reader-toc"><ReaderIcon name="bulletlist" /></button>}
       </div>
@@ -33,20 +34,19 @@ const paperCredit=presentation?photoCredit(presentation.paper.photo):null;
         <button class="reader-icon-button" data-close-search type="button" title="Close search" aria-label="Close search"><ReaderIcon name="xmarkwavy" /></button>
       </section>
       <p class="reader-network-status" data-network-status role="status" hidden></p>
-      <div class:list={["reader-layout", { "has-contents": toc.length > 0 }]} data-reader-layout>
+      <div class:list={["reader-layout", { "has-contents": toc.length > 0 }]} data-reader-layout data-document-themed={publication!.document.appearance.themeID != null ? "" : undefined}>
         {toc.length > 0 && <aside class="reader-toc" id="reader-toc" aria-label="Table of contents">
           <nav>{toc.map(item => <a href={`#${item.id}`} style={`--heading-level:${Math.min(3, item.level)}`} data-toc-link>{item.text || "Untitled heading"}</a>)}</nav>
         </aside>}
         <main id="document" class="reader-document" tabindex="-1" aria-label={title}>
-          {presentation.segments.map((html, index) => <article class="reader-paper penned-document" style={presentation!.styles} data-paper-blur={presentation!.paper.blur} data-paper-faded={presentation!.paper.faded} data-document-scheme={presentation!.light ? "light" : "dark"} data-document-font={String(publication!.document.appearance.fontStyle || "rounded")} aria-label={index ? `Page ${index + 1}` : title}>
+          {presentation.segments.map((html, index) => <article class="reader-paper penned-document" style={presentation!.styles} data-paper-blur={presentation!.paper.blur} data-paper-faded={presentation!.paper.faded} data-document-scheme={presentation!.light ? "light" : "dark"} data-document-font={String(publication!.document.appearance.fontStyle || "rounded")} data-document-themed={publication!.document.appearance.themeID != null ? "" : undefined} data-collection-entry={index === 0 && presentation!.collectionFields ? "" : undefined} aria-label={index ? `Page ${index + 1}` : title}>
             {index === 0 && <>
-              {publication!.navigation && <nav class="reader-page-navigation" aria-label="Parent page"><a data-reader-linked href={`/p/${token}${publication!.navigation.parentPage ? `?page=${publication!.navigation.parentPage}` : ""}`}><ReaderIcon name="chevleft" /><span>{publication!.navigation.parentTitle || "Document"}</span></a></nav>}
               {presentation!.showCover && <div class="reader-cover" data-cover-theme={presentation!.coverTheme}>
                 {presentation!.cover ? <img src={presentation!.cover} alt="" fetchpriority="high" decoding="async" /> : <img class="reader-cover-art" src={iconURL(presentation!.coverTheme === "neonCode" ? "codewindow" : "moonzs")} alt="" />}
               </div>}
               {coverCredit && presentation!.showCover && <small class="reader-photo-credit">Photo by <a href={coverCredit.photographerURL} target="_blank" rel="noopener noreferrer">{coverCredit.name}</a> on <a href={coverCredit.sourceURL} target="_blank" rel="noopener noreferrer">Unsplash</a></small>}
               {(publication!.settings.showTitle !== false || publication!.document.subtitle || presentation!.author) && <header class="reader-document-heading">
-                {publication!.settings.showTitle !== false && <div class="reader-title-row"><h1>{publication!.document.title || "Untitled"}</h1>{publication!.document.icon && <ReaderIcon name={publication!.document.icon} class="reader-document-icon" />}</div>}
+                {publication!.settings.showTitle !== false && <div class="reader-title-row"><h1>{publication!.document.title || "Untitled"}</h1>{publication!.document.icon && <span class="reader-document-icon-tile"><ReaderIcon name={["doc", "doc.text"].includes(publication!.document.icon) ? `sf:${publication!.document.icon}` : publication!.document.icon} class="reader-document-icon" /></span>}</div>}
                 {publication!.document.subtitle && <p class="reader-subtitle">{publication!.document.subtitle}</p>}
                 {(presentation!.author || presentation!.authorAvatar) && <div class="reader-author">
                   {presentation!.authorAvatar ? <img class="reader-author-avatar" src={presentation!.authorAvatar} alt="" width="32" height="32" decoding="async" />
@@ -55,6 +55,7 @@ const paperCredit=presentation?photoCredit(presentation.paper.photo):null;
                 </div>}
               </header>}
             </>}
+            {index === 0 && presentation!.collectionFields && <div class="reader-native-fields" set:html={presentation!.collectionFields}></div>}
             <div class="tiptap-editor reader-content" set:html={html}></div>
           </article>)}
           <footer class="reader-document-footer">{publication!.settings.showBranding!==false&&<a class="reader-footer-brand" href="/"><img src="/images/branding/penned.png" alt="" width="20" height="20" />Published with Penned</a>}

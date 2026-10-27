@@ -29,12 +29,22 @@ export function presentPublication(page: PublishedPage, token: string) {
   }
   const outer = background(appearance.editorBackground, "#343434"), paper = background(appearance.innerPageBackground, "#242424");
   const ink = validColor(appearance.textColorHex) || "#F7F7F7";
-  const font = documentFonts[String(appearance.fontStyle)] || documentFonts.rounded;
+  const font = appearance.fontStyle === "rounded" || !documentFonts[String(appearance.fontStyle)] ? "ui-rounded, system-ui, sans-serif" : documentFonts[String(appearance.fontStyle)];
   const schemeBackground = object(appearance.themeID == null ? appearance.editorBackground : appearance.innerPageBackground);
   const rgb = Number.parseInt(String(schemeBackground.colorHex || "#242424").replace("#", "").slice(0, 6), 16);
   const light = ((rgb >> 16) & 255) * .2126 + ((rgb >> 8) & 255) * .7152 + (rgb & 255) * .0722 > 140;
   const styles = `--vellix-primary-text:${ink};--vellix-font-family:${font};--vellix-neutral-rgb:${light ? "33,29,41" : "255,255,255"};--vellix-secondary-text:${light ? "#686171" : "#9b9b9f"};--vellix-property-accent:${light ? "#7955a0" : "#b59ad9"};--vellix-link-color:${light ? "#7833bc" : "#8fe9ff"};--vellix-table-default-header:${light ? "#E7DEF2" : "#066DB0"};--reader-board-paper:${light ? "#FCFAFF" : "#2C2C2E"};--reader-board-ink:${light ? "#211D29" : "#E4E6F1"};--reader-paper-background:${paper.css};color:${ink};font-family:${font};color-scheme:${light ? "light" : "dark"}`;
-  const rendered = renderPublicContent(document, { mediaURL, iconURL, allowFollowLinkedContent: settings.allowFollowLinkedContent === true, publicationURL: `/p/${token}` });
+  const renderOptions = { mediaURL, iconURL, allowFollowLinkedContent: settings.allowFollowLinkedContent === true, publicationURL: `/p/${token}` };
+  const nodes = Array.isArray(document.content.content) ? document.content.content : [];
+  let fieldCount = 0;
+  // Collection entry fields are native rows above the editor in the app.
+  for (const value of nodes) {
+    const node = object(value);
+    if (node.type !== "inlineProperty" || typeof object(object(node.attrs).property).icon !== "string") break;
+    fieldCount++;
+  }
+  const collectionFields = fieldCount ? renderPublicContent({ ...document, content: { ...document.content, content: nodes.slice(0, fieldCount) } }, renderOptions).segments.join("") : "";
+  const rendered = renderPublicContent(fieldCount ? { ...document, content: { ...document.content, content: nodes.slice(fieldCount) } } : document, renderOptions);
   const coverPhoto = object(appearance.coverPhoto);
   const cover = document.cover?.mediaID ? mediaURL(String(document.cover.mediaID)) : safePhoto(coverPhoto.imageURL);
   const showCover = appearance.showsCover === true || (appearance.showsCover == null && appearance.themeID != null);
@@ -42,7 +52,7 @@ export function presentPublication(page: PublishedPage, token: string) {
   const original = themeColors[String(appearance.themeID)], saved = object(appearance.editorBackground);
   const theme = original && saved.kind === "gradient" && String(saved.colorHex).toUpperCase() === original[0] && String(saved.secondaryColorHex).toUpperCase() === original[1]
     && (saved.gradientDirection == null || saved.gradientDirection === "diagonal") ? String(appearance.themeID) : "";
-  return { ...rendered, outer, paper, ink, font, light, styles, cover, coverPhoto, showCover,
+  return { ...rendered, collectionFields, outer, paper, ink, font, light, styles, cover, coverPhoto, showCover,
     coverTheme: String(appearance.coverThemeID || appearance.themeID || "custom"),
     theme, author: settings.showAuthor ? settings.authorName || "" : "",
     authorAvatar: settings.showAuthor && document.authorAvatar ? mediaURL(document.authorAvatar.mediaID) : null,
