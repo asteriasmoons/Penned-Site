@@ -19,7 +19,7 @@ test("access form uses the external reader entry under the strict production CSP
   const reader=await readFile(new URL("../src/scripts/public-reader.ts",import.meta.url),"utf8");
   assert.doesNotMatch(gate,/<script/);
   assert.match(gate,/<form method="post"/);
-  assert.match(reader,/if\(accessForm\)initializeAccessGate\(accessForm\)/);
+  assert.match(reader,/if \(form\) initializeAccessGate\(form\)/);
   assert.match(reader,/form\.addEventListener\("submit",event=>\{event\.preventDefault\(\)/);
 });
 

@@ -1,0 +1,80 @@
+---
+import ReaderIcon from "./ReaderIcon.astro";
+import ReaderGate from "./ReaderGate.astro";
+import { photoCredit, iconURL } from "../../lib/public-document.ts";
+import type { presentPublication } from "../../lib/public-document.ts";
+import type { PublishedPage, ReaderAccessRequired } from "../../lib/publishing.ts";
+interface Props { publication: PublishedPage | null; presentation: ReturnType<typeof presentPublication> | null; token: string; pageKey?: string; title: string; unavailable?: boolean; gate?: ReaderAccessRequired | null; retryURL?: string }
+const { publication, presentation, token, pageKey, title, unavailable=false, gate=null, retryURL="" }=Astro.props;
+const valid=Boolean(publication&&presentation);
+const toc=valid&&publication!.settings.showTableOfContents?presentation!.toc:[];
+const coverCredit=presentation?photoCredit(presentation.coverPhoto):null;
+const backdropCredit=presentation?photoCredit(presentation.outer.photo):null;
+const paperCredit=presentation?photoCredit(presentation.paper.photo):null;
+---
+    <a class="reader-skip" href="#document">Skip to document</a>
+    <header class="reader-header">
+      <a class="reader-brand" href="/" aria-label="Penned homepage"><img src="/images/branding/penned.png" alt="" width="28" height="28" /><span>Penned</span></a>
+      <span class="reader-header-title" data-reader-title>{valid ? title : ""}</span>
+      <div class="reader-header-actions">
+        {valid && <button class="reader-icon-button" type="button" data-open-search title="Search document" aria-label="Search document" aria-expanded="false" aria-controls="reader-search"><ReaderIcon name="searchwavy" /></button>}
+        {toc.length > 0 && <button class="reader-icon-button reader-contents-button" type="button" data-open-contents title="Table of contents" aria-label="Table of contents" aria-expanded="false" aria-controls="reader-toc"><ReaderIcon name="bulletlist" /></button>}
+      </div>
+    </header>
+    {valid && presentation && publication ? <>
+      <div class="reader-backdrop" style={`background:${presentation.outer.css}`} data-blur={presentation.outer.blur} data-faded={presentation.outer.faded} aria-hidden="true"></div>
+      {presentation.theme && presentation.theme !== "custom" && <div class="reader-theme-pattern" style={`--reader-pattern:url(${JSON.stringify(iconURL(presentation.theme === "lunarClouds" ? "rainbowclouds" : "codewindow"))})`} data-pattern={presentation.theme} data-faded={presentation.outer.faded} aria-hidden="true"></div>}
+      <section id="reader-search" class="reader-search" aria-label="Search this document" hidden>
+        <ReaderIcon name="searchwavy" />
+        <input type="search" data-search-input aria-label="Search document text" autocomplete="off" placeholder="Search document" />
+        <output class="reader-search-count" data-search-count aria-live="polite"></output>
+        <button class="reader-icon-button" data-search-prev type="button" title="Previous result" aria-label="Previous result"><ReaderIcon name="chevup" /></button>
+        <button class="reader-icon-button" data-search-next type="button" title="Next result" aria-label="Next result"><ReaderIcon name="chevdown" /></button>
+        <button class="reader-icon-button" data-close-search type="button" title="Close search" aria-label="Close search"><ReaderIcon name="xmarkwavy" /></button>
+      </section>
+      <p class="reader-network-status" data-network-status role="status" hidden></p>
+      <div class:list={["reader-layout", { "has-contents": toc.length > 0 }]} data-reader-layout>
+        {toc.length > 0 && <aside class="reader-toc" id="reader-toc" aria-label="Table of contents">
+          <nav>{toc.map(item => <a href={`#${item.id}`} style={`--heading-level:${Math.min(3, item.level)}`} data-toc-link>{item.text || "Untitled heading"}</a>)}</nav>
+        </aside>}
+        <main id="document" class="reader-document" tabindex="-1" aria-label={title}>
+          {presentation.segments.map((html, index) => <article class="reader-paper penned-document" style={presentation!.styles} data-paper-blur={presentation!.paper.blur} data-paper-faded={presentation!.paper.faded} data-document-scheme={presentation!.light ? "light" : "dark"} aria-label={index ? `Page ${index + 1}` : title}>
+            {index === 0 && <>
+              {publication!.navigation && <nav class="reader-page-navigation" aria-label="Parent page"><a data-reader-linked href={`/p/${token}${publication!.navigation.parentPage ? `?page=${publication!.navigation.parentPage}` : ""}`}><ReaderIcon name="chevleft" /><span>{publication!.navigation.parentTitle || "Document"}</span></a></nav>}
+              {presentation!.showCover && <div class="reader-cover" data-cover-theme={presentation!.coverTheme}>
+                {presentation!.cover ? <img src={presentation!.cover} alt="" fetchpriority="high" decoding="async" /> : <img class="reader-cover-art" src={iconURL(presentation!.coverTheme === "neonCode" ? "codewindow" : "moonzs")} alt="" />}
+              </div>}
+              {coverCredit && presentation!.showCover && <small class="reader-photo-credit">Photo by <a href={coverCredit.photographerURL} target="_blank" rel="noopener noreferrer">{coverCredit.name}</a> on <a href={coverCredit.sourceURL} target="_blank" rel="noopener noreferrer">Unsplash</a></small>}
+              {(publication!.settings.showTitle !== false || publication!.document.subtitle || presentation!.author) && <header class="reader-document-heading">
+                {publication!.settings.showTitle !== false && <div class="reader-title-row"><h1>{publication!.document.title || "Untitled"}</h1>{publication!.document.icon && <ReaderIcon name={publication!.document.icon} class="reader-document-icon" />}</div>}
+                {publication!.document.subtitle && <p class="reader-subtitle">{publication!.document.subtitle}</p>}
+                {(presentation!.author || presentation!.authorAvatar) && <div class="reader-author">
+                  {presentation!.authorAvatar ? <img class="reader-author-avatar" src={presentation!.authorAvatar} alt="" width="32" height="32" decoding="async" />
+                    : <span class="reader-author-avatar reader-author-initials" aria-hidden="true">{presentation!.authorInitials}</span>}
+                  <span>{presentation!.author}</span>
+                </div>}
+              </header>}
+            </>}
+            <div class="tiptap-editor reader-content" set:html={html}></div>
+          </article>)}
+          <footer class="reader-document-footer">{publication!.settings.showBranding!==false&&<a class="reader-footer-brand" href="/"><img src="/images/branding/penned.png" alt="" width="20" height="20" />Published with Penned</a>}
+            {[backdropCredit, paperCredit].filter(Boolean).map(credit => <small class="reader-photo-credit">Photo by <a href={credit!.photographerURL} rel="noopener noreferrer" target="_blank">{credit!.name}</a> on <a href={credit!.sourceURL} rel="noopener noreferrer" target="_blank">Unsplash</a></small>)}
+          </footer>
+        </main>
+      </div>
+      <div class="reader-drawer-shade" data-drawer-shade hidden></div>
+      <dialog class="reader-media-dialog" data-media-dialog aria-label="Image viewer">
+        <div class="reader-media-toolbar"><span data-media-name></span><span data-media-counter></span>
+          <button class="reader-icon-button" type="button" data-media-prev aria-label="Previous image" title="Previous image"><ReaderIcon name="chevleft" /></button>
+          <button class="reader-icon-button" type="button" data-media-next aria-label="Next image" title="Next image"><ReaderIcon name="chevright" /></button>
+          <button class="reader-icon-button" type="button" data-media-zoom-out aria-label="Zoom out" title="Zoom out"><ReaderIcon name="minuswavy" /></button>
+          <button class="reader-icon-button" type="button" data-media-zoom-in aria-label="Zoom in" title="Zoom in"><ReaderIcon name="addwavy" /></button>
+          <a class="reader-icon-button" data-media-original target="_blank" rel="noopener noreferrer" aria-label="Open original image" title="Open original image"><ReaderIcon name="arrowin" /></a>
+          <button class="reader-icon-button" type="button" data-media-close aria-label="Close image viewer" title="Close image viewer"><ReaderIcon name="xmarkwavy" /></button>
+        </div>
+        <div class="reader-media-viewport"><img data-media-image alt="" /></div>
+      </dialog>
+    </> : gate ? <ReaderGate password={gate.password} email={gate.email} token={token} /> : <main class="reader-state" id="document" tabindex="-1"><ReaderIcon name="linedpages" /><h1>{title}</h1>
+      <p>{unavailable ? "Please try opening this document again." : "This link may have been unpublished, expired, or replaced."}</p>
+      {unavailable && <a class="reader-retry" href={retryURL}>Try Again</a>}
+    </main>}

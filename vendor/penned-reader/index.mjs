@@ -20513,7 +20513,7 @@ function publicExtensions(options) {
       return [
         "div",
         { class: "vellix-property reader-property" },
-        ["div", { class: "vellix-property-name" }, icon(kind?.icon || "linedpages"), ["span", {}, property.name || kind?.title || "Property"]],
+        ["div", { class: "vellix-property-name" }, icon(node.attrs.property?.icon || kind?.icon || "linedpages"), ["span", {}, property.name || kind?.title || "Property"]],
         ["div", { class: "vellix-property-value" }, ...propertyValue(value, property.kind)]
       ];
     } }),

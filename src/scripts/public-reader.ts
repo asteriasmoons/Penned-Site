@@ -1,9 +1,14 @@
+import { createReaderNavigation } from "./reader-navigation";
+
 // Keep the access handler in this external entry: Astro inlines small component
 // scripts in production, which the reader's strict script-src policy rejects.
-const accessForm=document.querySelector<HTMLFormElement>("[data-reader-gate]");
-if(accessForm)initializeAccessGate(accessForm);
-const root = document.querySelector<HTMLBodyElement>("body[data-publication]");
-if (root) initializeReader(root);
+const navigation = createReaderNavigation(() => {
+  const form = document.querySelector<HTMLFormElement>("[data-reader-gate]");
+  if (form) initializeAccessGate(form);
+  const root = document.querySelector<HTMLBodyElement>("body[data-publication]");
+  return root ? initializeReader(root) : undefined;
+});
+navigation.start();
 
 function initializeAccessGate(form: HTMLFormElement) {
   async function submit(sendCode:boolean){
@@ -24,6 +29,7 @@ function initializeAccessGate(form: HTMLFormElement) {
 }
 
 function initializeReader(root: HTMLBodyElement) {
+  const lifetime = new AbortController();
   const api = root.dataset.api!;
   const contents = document.querySelector<HTMLElement>("#reader-toc");
   const shade = document.querySelector<HTMLElement>("[data-drawer-shade]");
@@ -77,11 +83,11 @@ function initializeReader(root: HTMLBodyElement) {
   document.addEventListener("click", event => {
     if (!(event.target instanceof Element) || event.target.closest(".reader-view-menu")) return;
     for (const collection of collections) collection.querySelector<HTMLDetailsElement>(".reader-view-menu")!.open = false;
-  });
+  }, { signal: lifetime.signal });
   document.addEventListener("keydown", event => {
     if (event.key !== "Escape") return;
     for (const collection of collections) collection.querySelector<HTMLDetailsElement>(".reader-view-menu")!.open = false;
-  });
+  }, { signal: lifetime.signal });
 
   // Native wide/large cards scale their entire fixed-size face with the paper.
   if ("ResizeObserver" in window) {
@@ -97,6 +103,7 @@ function initializeReader(root: HTMLBodyElement) {
 
   // Native details retains ordinary selection, scrolling and keyboard behavior.
   for (const original of document.querySelectorAll<HTMLElement>("[data-reader-toggle]")) {
+    if (original instanceof HTMLDetailsElement) continue;
     const details = document.createElement("details"), summary = document.createElement("summary"), body = document.createElement("div");
     details.className = "reader-toggle"; details.open = original.dataset.readerToggle !== "false";
     for (const attribute of [...original.attributes]) if (attribute.name !== "class") details.setAttribute(attribute.name, attribute.value);
@@ -208,7 +215,7 @@ function initializeReader(root: HTMLBodyElement) {
   document.addEventListener("keydown", event => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f" && !unavailable) { event.preventDefault(); setSearch(true); }
     if (event.key === "Escape") { if (!search.hidden) setSearch(false); setContents(false); }
-  });
+  }, { signal: lifetime.signal });
 
   const dialog = document.querySelector<HTMLDialogElement>("[data-media-dialog]")!;
   const image = dialog.querySelector<HTMLImageElement>("[data-media-image]")!;
@@ -236,14 +243,11 @@ function initializeReader(root: HTMLBodyElement) {
   dialog.querySelector("[data-media-close]")!.addEventListener("click", () => dialog.close());
   dialog.addEventListener("keydown", event => { if (event.key === "ArrowLeft") showImage(imageIndex - 1); if (event.key === "ArrowRight") showImage(imageIndex + 1); });
   dialog.addEventListener("close", () => { image.removeAttribute("src"); zoom = 1; });
-  for (const link of document.querySelectorAll<HTMLAnchorElement>("[data-reader-linked]")) link.addEventListener("click", event => {
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.defaultPrevented) return;
-    const loading = document.querySelector<HTMLElement>("[data-reader-loading]"); if (loading) loading.hidden = false;
-  });
-  window.addEventListener("pageshow", () => { const loading = document.querySelector<HTMLElement>("[data-reader-loading]"); if (loading) loading.hidden = true; });
+  window.addEventListener("pageshow", event => { if (event.persisted) void checkAccess(); }, { signal: lifetime.signal });
 
   function revoke() {
     if (unavailable) return; unavailable = true;
+    navigation.clear();
     clearSearch(); setContents(false); dialog.close();
     document.querySelectorAll<HTMLMediaElement>("audio,video").forEach(media => { media.pause(); media.removeAttribute("src"); media.load(); });
     const main = document.createElement("main"); main.id = "document"; main.className = "reader-state";
@@ -253,17 +257,17 @@ function initializeReader(root: HTMLBodyElement) {
     document.querySelector("[data-reader-title]")!.textContent = "";
     document.title = "Document unavailable | Penned"; search.hidden = true; openSearch.hidden = true; if (openContents) openContents.hidden = true;
     document.querySelector<HTMLElement>("[data-network-status]")!.hidden = true;
-    document.querySelector<HTMLElement>("[data-reader-loading]")!.hidden = true;
     document.querySelectorAll("[data-reader-file]").forEach(link => link.removeAttribute("href"));
     cleanup.forEach(stop => stop());
+    lifetime.abort();
   }
   let checking = false;
   let lastInteraction=0, pendingVersion=false, refreshing=false;
   const readingKey="penned-reading-"+root.dataset.publication+(root.dataset.page?":"+root.dataset.page:"");
   const touch=()=>{lastInteraction=Date.now();};
-  window.addEventListener("scroll",touch,{passive:true});
-  document.addEventListener("pointerdown",touch,{passive:true});
-  document.addEventListener("keydown",touch);
+  window.addEventListener("scroll",touch,{passive:true,signal:lifetime.signal});
+  document.addEventListener("pointerdown",touch,{passive:true,signal:lifetime.signal});
+  document.addEventListener("keydown",touch,{signal:lifetime.signal});
   function refreshContent(){
     if(!pendingVersion||refreshing||unavailable||document.hidden||Date.now()-lastInteraction<1500||dialog.open||!search.hidden||contents?.classList.contains("is-open")||!getSelection()?.isCollapsed
       ||[...document.querySelectorAll<HTMLMediaElement>("audio,video")].some(media=>!media.paused&&!media.ended))return;
@@ -275,7 +279,7 @@ function initializeReader(root: HTMLBodyElement) {
       text:block?.textContent?.slice(0,160),index:block?candidates.indexOf(block):-1,offset:block?.getBoundingClientRect().top,heading:heading?.id,headingOffset:heading?.getBoundingClientRect().top,
       toggles:[...document.querySelectorAll<HTMLDetailsElement>("details.reader-toggle")].map(details=>details.open),
       collectionViews:collections.map(collection=>collection.dataset.activeView)}));}catch{}
-    location.reload();
+    void navigation.refresh().finally(() => { refreshing = false; });
   }
   const updateTimer=window.setInterval(refreshContent,1000);cleanup.push(()=>window.clearInterval(updateTimer));
   try{
@@ -284,6 +288,7 @@ function initializeReader(root: HTMLBodyElement) {
       document.querySelectorAll<HTMLDetailsElement>("details.reader-toggle").forEach((details,index)=>{if(typeof position.toggles?.[index]==="boolean")details.open=position.toggles[index];});
       collections.forEach((collection,index)=>{if(typeof position.collectionViews?.[index]==="string")selectCollectionView(collection,position.collectionViews[index]);});
       const restore=()=>{
+        if(lifetime.signal.aborted)return;
         const candidates=[...document.querySelectorAll<HTMLElement>(".reader-content > *, .reader-document-heading")];
         const block=candidates.filter(element=>element.textContent?.slice(0,160)===position.text).sort((a,b)=>Math.abs(candidates.indexOf(a)-position.index)-Math.abs(candidates.indexOf(b)-position.index))[0];
         const heading=position.heading?document.getElementById(position.heading):null;
@@ -291,7 +296,7 @@ function initializeReader(root: HTMLBodyElement) {
         window.scrollTo(0,target?scrollY+target.getBoundingClientRect().top-(block?position.offset:position.headingOffset):position.ratio*Math.max(1,document.documentElement.scrollHeight-innerHeight));
       };
       void document.fonts.ready.then(()=>requestAnimationFrame(restore));
-      window.addEventListener("load",restore,{once:true});
+      window.addEventListener("load",restore,{once:true,signal:lifetime.signal});
     }
   }catch{}
   async function checkAccess() {
@@ -299,19 +304,22 @@ function initializeReader(root: HTMLBodyElement) {
     const status = document.querySelector<HTMLElement>("[data-network-status]")!;
     try {
       const response = await fetch(api, { cache: "no-store", credentials: "same-origin", referrerPolicy: "no-referrer", signal: AbortSignal.timeout(12000) });
+      if(lifetime.signal.aborted)return;
       if (response.status === 404) revoke();
       else if(response.status===401){revoke();location.reload();}
       else if (response.ok) {
         status.hidden=true;const current=await response.json();
+        if(lifetime.signal.aborted)return;
+        navigation.verified(Number(current.version));
         if(Number(current.version)>Number(root.dataset.version)){pendingVersion=true;refreshContent();}
       }
       else throw new Error("Publication verification unavailable");
-    } catch { if (!unavailable) { status.textContent = "Connection unavailable. Showing the opened document."; status.hidden = false; } }
+    } catch { if (!unavailable&&!lifetime.signal.aborted) { status.textContent = "Connection unavailable. Showing the opened document."; status.hidden = false; } }
     finally { checking = false; }
   }
   const interval = window.setInterval(checkAccess, 45000); cleanup.push(() => window.clearInterval(interval));
-  document.addEventListener("visibilitychange", () => { if (!document.hidden) void checkAccess(); });
-  window.addEventListener("online", () => void checkAccess());
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) void checkAccess(); },{signal:lifetime.signal});
+  window.addEventListener("online", () => void checkAccess(),{signal:lifetime.signal});
   const expiry = Date.parse(root.dataset.expires || "");
   if (Number.isFinite(expiry)) {
     const expire = () => { if (Date.now() >= expiry) revoke(); else { const timer = window.setTimeout(expire, Math.min(2147480000, expiry - Date.now())); cleanup.push(() => window.clearTimeout(timer)); } };
@@ -319,4 +327,12 @@ function initializeReader(root: HTMLBodyElement) {
   }
   if (location.hash) { const target = document.getElementById(location.hash.slice(1)); if (target) { reveal(target); target.scrollIntoView(); } }
   updateSearchButtons();
+  return {
+    dispose() { lifetime.abort(); cleanup.forEach(stop => stop()); clearSearch(); },
+    unavailable: revoke,
+    beforeSnapshot() {
+      clearSearch(); search.hidden = true; input.value = ""; openSearch.setAttribute("aria-expanded", "false"); setContents(false); dialog.close();
+      for (const collection of collections) collection.querySelector<HTMLDetailsElement>(".reader-view-menu")!.open = false;
+    },
+  };
 }

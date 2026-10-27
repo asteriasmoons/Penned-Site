@@ -105,6 +105,8 @@ test("native SF Symbol headers resolve to actual glyph assets, not their raw ide
   const doc=document(result.segments[0]);
   assert.doesNotMatch(doc.body.textContent!,/sf:|flag.fill/);
   assert.equal(doc.querySelectorAll("[role=columnheader] .reader-icon").length,1);
+  const child=document(render([{type:"inlineProperty",attrs:{property:{name:"Priority",kind:"select",icon:"sf:flag.fill",value:"Medium"}}}],[],{iconURL:(name:string)=>catalogue[name]}).segments[0]);
+  assert.match(child.querySelector(".reader-icon")!.getAttribute("style")!,new RegExp(catalogue["sf:flag.fill"].replaceAll(".","\\.")));
 });
 test("Kanban omits empty value rows and retains native plain controls and a read-only footer",()=>{
   const projection={name:"Tasks",viewName:"Board",kind:"kanban",fields:[{key:"field-0",name:"Priority",kind:"text"}],
