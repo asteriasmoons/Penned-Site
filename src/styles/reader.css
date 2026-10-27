@@ -142,8 +142,8 @@ button { color: inherit; }
 .penned-document .reader-component-choice { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid color-mix(in srgb, var(--vellix-primary-text) 25%, transparent); border-radius: 30px; font-size: 13px; }
 .penned-document .reader-component-choice.is-selected { background: var(--vellix-primary-text); color: var(--vellix-component-selected-text, #17131f); font-weight: 700; }
 .penned-document .reader-component-choice .reader-icon { width: 15px; height: 15px; }
-.penned-document .penned-inline-tag { padding: 1px 3px; border-radius: 3px; color: var(--vellix-property-accent); background: color-mix(in srgb, var(--vellix-property-accent) 14%, transparent); font-weight: 700; }
-.penned-document[data-document-font="rounded"] .penned-inline-tag { font-weight: 400; }
+.penned-document .penned-inline-tag { padding: 0 2px; border-radius: 4px; color: var(--vellix-property-accent); background: rgba(181,154,217,.12); font-weight: 600; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.penned-document[data-document-font="rounded"] .penned-inline-tag { font-family: ui-rounded, system-ui, sans-serif; }
 .penned-document .reader-muted { opacity: .5; }
 .penned-document .reader-content .reader-page { text-decoration: none; user-select: text; -webkit-user-select: text; cursor: default; margin: 12px 0; }
 .penned-document .reader-content a.reader-page { cursor: pointer; }
