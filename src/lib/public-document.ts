@@ -2,6 +2,9 @@ import icons from "../../vendor/penned-reader/icons.json";
 import { documentFonts, renderPublicContent, safePhoto, validColor, contrastColor } from "../../vendor/penned-reader/index.mjs";
 import { createPublishingReader, type PublishedPage } from "./publishing.ts";
 
+// Extend the shared reader catalogue without regenerating its bundled schema.
+documentFonts.hachiMaruPop = '"HachiMaruPop",cursive';
+
 // This is the existing public backend URL, not a server credential.
 export const publishingProject = import.meta.env.PUBLIC_PENNED_SUPABASE_URL || "https://rfujrtehopxvybsjlwus.supabase.co";
 export const reader = createPublishingReader(publishingProject);
