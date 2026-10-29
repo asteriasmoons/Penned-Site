@@ -9,8 +9,8 @@
 }
 @font-face {
   font-family: "HachiMaruPop";
-  src: url("/fonts/HachiMaruPop-SyntheticBold.ttf") format("truetype");
-  font-weight: 700;
+  src: url("/fonts/HachiMaruPop-SyntheticBold.ttf?v=2") format("truetype");
+  font-weight: 600 900;
   font-style: normal;
   font-display: swap;
 }
@@ -23,8 +23,8 @@
 }
 @font-face {
   font-family: "HachiMaruPop";
-  src: url("/fonts/HachiMaruPop-SyntheticBoldItalic.ttf") format("truetype");
-  font-weight: 700;
+  src: url("/fonts/HachiMaruPop-SyntheticBoldItalic.ttf?v=2") format("truetype");
+  font-weight: 600 900;
   font-style: italic;
   font-display: swap;
 }
@@ -201,6 +201,7 @@ button { color: inherit; }
 .penned-document .reader-page-card[data-card-size="wide"], .penned-document .reader-page-card[data-card-size="large"] { width: 100%; }
 .penned-document .reader-page-card-face { position: absolute; left: 0; top: 0; width: var(--card-width); height: var(--card-height); border-radius: 8px; border: .75px solid currentColor; border-color: color-mix(in srgb, currentColor 14%, transparent); transform-origin: top left; transform: scale(var(--card-scale, 1)); overflow: hidden; }
 .penned-document .reader-page-card-copy { position: absolute; left: 18px; top: 18px; right: 14px; display: flex; flex-direction: column; gap: 9px; }
+.penned-document[data-document-font="hachiMaruPop"] .reader-page-card-copy { font-family: var(--vellix-font-family); }
 .penned-document .reader-page-card-copy strong { font-size: 15px; font-weight: 900; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 .penned-document .reader-page-card-copy>span { font-size: 13px; line-height: 1.4; opacity: .62; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .penned-document [data-card-pages="true"][data-card-size="compact"] .reader-page-card-copy { left: 14px; top: 47px; gap: 4px; }
