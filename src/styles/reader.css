@@ -85,7 +85,7 @@ button { color: inherit; }
 .reader-page-navigation span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reader-page-navigation .reader-icon { width: 16px; height: 16px; }
 .reader-title-row { display: flex; gap: 16px; align-items: end; }
-.reader-title-row h1 { flex: 1; min-width: 0; margin: 0; font: 900 30px/1.25 var(--vellix-font-family); letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reader-title-row h1 { flex: 1; min-width: 0; margin: 0; font: 900 34px/1.25 var(--vellix-font-family); letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reader-document-icon-tile { display: flex; flex: 0 0 42px; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 8px; background: color-mix(in srgb, var(--vellix-primary-text) 11%, transparent); border: 1px solid color-mix(in srgb, var(--vellix-primary-text) 13%, transparent); }
 .reader-document-icon { width: 18px; height: 18px; }
 .reader-subtitle { margin: 10px 0 0; font-size: 16px; line-height: 1.5; opacity: .7; }
@@ -299,7 +299,7 @@ button { color: inherit; }
   .reader-paper { padding: 16px; border-radius: 22px; }
   .reader-paper[data-document-themed] { padding-bottom: 4px; }
   .reader-paper[data-collection-entry] > .reader-content { min-height: 96px; }
-  .reader-title-row h1 { font-size: 22px; }
+  .reader-title-row h1 { font-size: 34px; }
   .reader-document-icon-tile { flex-basis: 38px; width: 38px; height: 38px; }
   .reader-document-icon { width: 16px; height: 16px; }
   .reader-cover { border-radius: 8px; }
