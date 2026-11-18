@@ -3358,13 +3358,13 @@ var require_bessel = __commonJS({
 // node_modules/jstat/dist/jstat.js
 var require_jstat = __commonJS({
   "node_modules/jstat/dist/jstat.js"(exports2, module2) {
-    (function(window, factory) {
+    (function(window2, factory) {
       if (typeof exports2 === "object") {
         module2.exports = factory();
       } else if (typeof define === "function" && define.amd) {
         define(factory);
       } else {
-        window.jStat = factory();
+        window2.jStat = factory();
       }
     })(exports2, function() {
       var jStat = function(Math2, undefined2) {
@@ -19787,7 +19787,7 @@ var require_fast_formula_parser = __commonJS({
 
 // src/public-document.js
 var import_fast_formula_parser = __toESM(require_fast_formula_parser(), 1);
-import { Node, Extension as Extension2, getSchema } from "@tiptap/core";
+import { Node as Node4, Extension as Extension3, getSchema } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Code from "@tiptap/extension-code";
 import { generateHTML } from "@tiptap/html/server";
@@ -19796,20 +19796,120 @@ import { generateHTML } from "@tiptap/html/server";
 import { Mark, Extension } from "@tiptap/core";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { closeHistory } from "@tiptap/pm/history";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
+
+// src/incremental-nodes.js
+function changedRanges(transaction) {
+  const ranges = [];
+  const add = (from, to, remaining) => {
+    from = remaining.map(from, -1);
+    to = remaining.map(to, 1);
+    const size = transaction.doc.content.size;
+    from = Math.max(0, Math.min(size, from));
+    to = Math.max(from, Math.min(size, to));
+    ranges.push({ from, to });
+  };
+  transaction.steps.forEach((step, index) => {
+    const remaining = transaction.mapping.slice(index + 1);
+    let mapped = false;
+    step.getMap().forEach((_from, _to, from, to) => {
+      mapped = true;
+      add(from, to, remaining);
+    });
+    if (!mapped && Number.isFinite(step.from)) add(step.from, step.to ?? step.from, remaining);
+    else if (!mapped && Number.isFinite(step.pos)) add(step.pos, step.pos + 1, remaining);
+  });
+  ranges.sort((a, b) => a.from - b.from);
+  return ranges.reduce((result, range) => {
+    const last2 = result[result.length - 1];
+    if (last2 && range.from <= last2.to) last2.to = Math.max(last2.to, range.to);
+    else result.push({ ...range });
+    return result;
+  }, []);
+}
+function createNodeIndex(doc, accepts, descendIntoMatch = true) {
+  const records = [];
+  const descend = (node) => typeof descendIntoMatch === "function" ? descendIntoMatch(node) : descendIntoMatch;
+  doc.descendants((node, pos) => {
+    if (accepts(node)) {
+      records.push({ node, pos });
+      return descend(node);
+    }
+    return !node.isText;
+  });
+  return { doc, records, changed: records };
+}
+function updateNodeIndex(previous, transaction, accepts, descendIntoMatch = true) {
+  if (!previous || previous.doc !== transaction.before) return createNodeIndex(transaction.doc, accepts, descendIntoMatch);
+  if (!transaction.docChanged) return previous;
+  const descend = (node) => typeof descendIntoMatch === "function" ? descendIntoMatch(node) : descendIntoMatch;
+  const ranges = changedRanges(transaction), byPosition = /* @__PURE__ */ new Map();
+  for (const record of previous.records) {
+    const start = transaction.mapping.mapResult(record.pos, 1);
+    if (start.deleted) continue;
+    const end = transaction.mapping.map(record.pos + record.node.nodeSize, -1);
+    const touched = ranges.some((range) => range.from <= end && range.to >= start.pos);
+    const node = touched ? transaction.doc.nodeAt(start.pos) : record.node;
+    if (node && touched) {
+      const resolved = transaction.doc.resolve(start.pos);
+      let drop2 = false;
+      for (let depth = resolved.depth; depth > 0; depth--) {
+        const ancestor = resolved.node(depth);
+        if (accepts(ancestor)) {
+          drop2 = !descend(ancestor);
+          break;
+        }
+      }
+      if (drop2) continue;
+    }
+    if (node && accepts(node)) byPosition.set(start.pos, node === record.node && start.pos === record.pos ? record : { node, pos: start.pos });
+  }
+  for (const range of ranges) {
+    const from = Math.max(0, range.from - 1), to = Math.min(transaction.doc.content.size, range.to + 1);
+    if (from >= to) continue;
+    transaction.doc.nodesBetween(from, to, (node, pos) => {
+      if (accepts(node)) {
+        byPosition.set(pos, { node, pos });
+        return descend(node);
+      }
+      return !node.isText;
+    });
+  }
+  const records = [...byPosition.values()].sort((a, b) => a.pos - b.pos);
+  const oldNodes = new Set(previous.records.map((record) => record.node));
+  return { doc: transaction.doc, records, changed: records.filter((record) => !oldNodes.has(record.node)) };
+}
+globalThis.PennedIncrementalNodes = { changedRanges, createNodeIndex, updateNodeIndex };
+
+// src/text-color.js
 function createTextColor({
   Mark: Mark2,
-  Extension: Extension3,
-  Plugin: Plugin2,
+  Extension: Extension4,
+  Plugin: Plugin3,
   PluginKey: PluginKey2,
-  TextSelection: TextSelection3,
-  closeHistory: closeHistory2,
+  TextSelection: TextSelection4,
+  closeHistory: closeHistory3,
+  Decoration: Decoration2,
+  DecorationSet: DecorationSet2,
   post,
   snapshot,
   selectionActive
 }) {
   const key = new PluginKey2("vellixInlineTextColor");
+  const gradientKey = new PluginKey2("vellixInlineGradientLayout");
+  const gradientBlocks = /* @__PURE__ */ new WeakMap();
+  const hasGradient = (node) => {
+    if (!node.isTextblock) return false;
+    if (gradientBlocks.has(node)) return gradientBlocks.get(node);
+    let found = false;
+    node.forEach((child) => {
+      if (child.marks.some((mark2) => mark2.type.name === "textStyle" && mark2.attrs.gradient)) found = true;
+    });
+    gradientBlocks.set(node, found);
+    return found;
+  };
   let sequence = 0;
-  function color(value) {
+  function color2(value) {
     if (typeof value !== "string") return null;
     const hex = value.trim().match(/^#([a-f\d]{3}|[a-f\d]{6})$/i);
     if (hex) return "#" + (hex[1].length === 3 ? [...hex[1]].map((c) => c + c).join("") : hex[1]).toUpperCase();
@@ -19818,11 +19918,11 @@ function createTextColor({
   }
   function style2(value) {
     if (value?.kind === "solid") {
-      const start2 = color(value.start);
+      const start2 = color2(value.start);
       return start2 ? { kind: "solid", start: start2 } : null;
     }
     if (value?.kind !== "gradient") return null;
-    const start = color(value.start), end = color(value.end), angle = value.angle;
+    const start = color2(value.start), end = color2(value.end), angle = value.angle;
     if (!start || !end || typeof angle !== "number" || !Number.isFinite(angle)) return null;
     return { kind: "gradient", start, end, angle: (Math.round(angle) % 360 + 360) % 360 };
   }
@@ -19842,7 +19942,7 @@ function createTextColor({
     inclusive: false,
     addAttributes() {
       return {
-        color: { default: null, rendered: false, parseHTML: (el) => color(el.style.color) },
+        color: { default: null, rendered: false, parseHTML: (el) => color2(el.style.color) },
         gradient: { default: null, rendered: false, parseHTML: (el) => {
           const value = parseGradient(el);
           return value ? { start: value.start, end: value.end, angle: value.angle } : null;
@@ -19850,7 +19950,7 @@ function createTextColor({
       };
     },
     parseHTML() {
-      return [{ tag: "span[data-vellix-gradient]" }, { tag: "span[style]", getAttrs: (el) => color(el.style.color) ? {} : false }];
+      return [{ tag: "span[data-vellix-gradient]" }, { tag: "span[style]", getAttrs: (el) => color2(el.style.color) ? {} : false }];
     },
     renderHTML({ mark: mark2 }) {
       const value = markStyle(mark2.attrs);
@@ -19875,18 +19975,161 @@ function createTextColor({
   }
   function eligible(editor) {
     const selection = editor.state.selection;
-    return editor.isEditable && !selectionActive() && selection instanceof TextSelection3 && !selection.empty && ranges(editor, selection.from, selection.to).length > 0;
+    return editor.isEditable && !selectionActive() && selection instanceof TextSelection4 && !selection.empty && ranges(editor, selection.from, selection.to).length > 0;
   }
   function currentStyle(editor, from, to) {
     const values2 = ranges(editor, from, to).map(({ node }) => markStyle(node.marks.find((m) => m.type.name === "textStyle")?.attrs));
     const mixed = new Set(values2.map((v) => JSON.stringify(v))).size > 1;
     return { style: mixed ? null : values2[0] ?? null, mixed };
   }
-  const integration = Extension3.create({
+  function gradientView(view) {
+    const doc = view.dom.ownerDocument, win = doc.defaultView;
+    let frame = 0, destroyed = false;
+    let appearanceRevision = 0;
+    const paintedBlocks = /* @__PURE__ */ new WeakMap();
+    const stylesheet = doc.createElement("style");
+    stylesheet.textContent = ".vellix-gradient-fragment span[data-vellix-gradient],span[data-vellix-gradient]:has(.vellix-gradient-fragment){background-image:none!important}";
+    const syncStylesheet = () => {
+      const needed = gradientKey.getState(view.state).index.records.length > 0;
+      if (needed && !stylesheet.isConnected) doc.head.appendChild(stylesheet);
+      else if (!needed && stylesheet.isConnected) stylesheet.remove();
+    };
+    syncStylesheet();
+    function fragments(node) {
+      const range = doc.createRange(), text2 = node.data, result = [];
+      const from = view.posAtDOM(node, 0);
+      const position = view.state.doc.resolve(from);
+      if (!position.parent.isTextblock || from + text2.length > position.end() || view.state.doc.textBetween(from, from + text2.length, "\n") !== text2) return result;
+      function rects(start2, end) {
+        range.setStart(node, start2);
+        range.setEnd(node, end);
+        return [...range.getClientRects()].filter((rect) => rect.width > 0.01 && rect.height > 0.01);
+      }
+      let start = 0;
+      while (start < text2.length) {
+        let end = text2.length, boxes = rects(start, end);
+        if (!boxes.length) break;
+        if (boxes.length > 1) {
+          let low = start + 1, high = end;
+          while (low < high) {
+            const middle = Math.ceil((low + high) / 2);
+            if (rects(start, middle).length <= 1) low = middle;
+            else high = middle - 1;
+          }
+          end = low;
+          boxes = rects(start, end);
+        }
+        if (boxes.length === 1) result.push({ from: from + start, to: from + end, rect: boxes[0] });
+        start = end;
+      }
+      return result;
+    }
+    function paint() {
+      frame = 0;
+      if (destroyed || view.isDestroyed) return;
+      syncStylesheet();
+      const decorations = [], signature = [];
+      for (const record of gradientKey.getState(view.state).index.records) {
+        const block = view.nodeDOM(record.pos);
+        if (!(block instanceof win.HTMLElement)) continue;
+        const computed = win.getComputedStyle(block);
+        const layout = [appearanceRevision, block.clientWidth, computed.font, computed.lineHeight, computed.letterSpacing].join(":");
+        const cached = paintedBlocks.get(record.node);
+        if (cached?.layout === layout) {
+          for (const part of cached.parts) decorations.push(Decoration2.inline(
+            record.pos + part.from,
+            record.pos + part.to,
+            { class: "vellix-gradient-fragment", style: part.css }
+          ));
+          signature.push([record.node.attrs.id, cached.parts]);
+          continue;
+        }
+        const parts = [];
+        const walker = doc.createTreeWalker(block, win.NodeFilter.SHOW_TEXT), groups = [];
+        let node, current = null;
+        while (node = walker.nextNode()) {
+          if (!node.data) continue;
+          const boundary = node.parentElement.closest("[contenteditable]");
+          const span = node.parentElement.closest("span[data-vellix-gradient]");
+          const value = span && (!boundary || boundary === view.dom || boundary.contentEditable !== "false") ? parseGradient(span) : null;
+          if (!value) {
+            current = null;
+            continue;
+          }
+          const identity = JSON.stringify(value);
+          if (current?.identity !== identity) {
+            current = { identity, value, parts: [] };
+            groups.push(current);
+          }
+          current.parts.push(...fragments(node));
+        }
+        for (const group of groups) {
+          if (!group.parts.length) continue;
+          let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+          for (const { rect } of group.parts) {
+            left = Math.min(left, rect.left);
+            right = Math.max(right, rect.right);
+            top = Math.min(top, rect.top);
+            bottom = Math.max(bottom, rect.bottom);
+          }
+          const radians = group.value.angle * Math.PI / 180;
+          const dx = Math.sin(radians), dy = -Math.cos(radians);
+          const length = Math.abs(dx) * (right - left) + Math.abs(dy) * (bottom - top);
+          for (const { from, to, rect } of group.parts) {
+            const fragmentLength = Math.abs(dx) * rect.width + Math.abs(dy) * rect.height;
+            if (fragmentLength <= 0) continue;
+            const offset = dx * ((left + right - rect.left - rect.right) / 2) + dy * ((top + bottom - rect.top - rect.bottom) / 2);
+            const start = (offset - (length - fragmentLength) / 2) / fragmentLength;
+            const end = start + length / fragmentLength;
+            const image = `linear-gradient(${group.value.angle}deg,${group.value.start} ${(start * 100).toFixed(4)}%,${group.value.end} ${(end * 100).toFixed(4)}%)`;
+            const css = `background-image:${image}!important;background-size:${rect.width.toFixed(3)}px ${rect.height.toFixed(3)}px!important;background-position:0 0!important;background-repeat:no-repeat!important;background-origin:border-box!important;background-clip:text!important;-webkit-background-clip:text!important;color:transparent!important;-webkit-text-fill-color:transparent!important;box-decoration-break:clone;-webkit-box-decoration-break:clone`;
+            decorations.push(Decoration2.inline(from, to, { class: "vellix-gradient-fragment", style: css }));
+            parts.push({ from: from - record.pos, to: to - record.pos, css });
+          }
+        }
+        paintedBlocks.set(record.node, { layout, parts });
+        signature.push([record.node.attrs.id, parts]);
+      }
+      const next = JSON.stringify(signature);
+      if (gradientKey.getState(view.state).signature === next) return;
+      view.dispatch(view.state.tr.setMeta(gradientKey, {
+        decorations: DecorationSet2.create(view.state.doc, decorations),
+        signature: next
+      }).setMeta("addToHistory", false));
+    }
+    function schedule() {
+      if (!destroyed && !frame) frame = win.requestAnimationFrame(paint);
+    }
+    const resize = new win.ResizeObserver(schedule);
+    resize.observe(view.dom);
+    const invalidateAppearance = () => {
+      appearanceRevision++;
+      schedule();
+    };
+    const appearance = new win.MutationObserver(invalidateAppearance);
+    appearance.observe(doc.documentElement, { attributes: true, attributeFilter: ["style", "class"] });
+    doc.fonts?.addEventListener("loadingdone", invalidateAppearance);
+    void doc.fonts?.ready.then(invalidateAppearance);
+    schedule();
+    return {
+      update(_view, previous) {
+        if (view.state.doc !== previous.doc) schedule();
+      },
+      destroy() {
+        destroyed = true;
+        win.cancelAnimationFrame(frame);
+        resize.disconnect();
+        appearance.disconnect();
+        stylesheet.remove();
+        doc.fonts?.removeEventListener("loadingdone", invalidateAppearance);
+      }
+    };
+  }
+  const integration = Extension4.create({
     name: "vellixTextColorSelection",
     addProseMirrorPlugins() {
       const editor = this.editor;
-      return [new Plugin2({ key, state: {
+      return [new Plugin3({ key, state: {
         init: () => null,
         apply(tr, held) {
           const meta = tr.getMeta(key);
@@ -19897,7 +20140,22 @@ function createTextColor({
           if (to <= from || tr.doc.textBetween(from, to, "\n") !== held.text) return null;
           return { ...held, from, to };
         }
-      } })];
+      } }), new Plugin3({
+        key: gradientKey,
+        state: {
+          init: (_config, state) => ({ decorations: DecorationSet2.empty, signature: "", index: createNodeIndex(state.doc, hasGradient) }),
+          apply(tr, previous) {
+            const next = tr.getMeta(gradientKey);
+            if (next) return { ...previous, ...next };
+            if (!tr.docChanged) return previous;
+            const index = updateNodeIndex(previous.index, tr, hasGradient);
+            const changed = index.records.length !== previous.index.records.length || index.records.some((record, i) => record.node !== previous.index.records[i]?.node);
+            return { index, decorations: previous.decorations.map(tr.mapping, tr.doc), signature: changed ? "" : previous.signature };
+          }
+        },
+        props: { decorations: (state) => gradientKey.getState(state)?.decorations ?? DecorationSet2.empty },
+        view: gradientView
+      })];
     }
   });
   function command(editor, name, args = {}) {
@@ -19924,7 +20182,7 @@ function createTextColor({
     const { from, to } = held;
     if (name === "textColorEnd") {
       const tr2 = editor.state.tr.setMeta(key, null).setMeta("addToHistory", false);
-      if (args.restoreFocus) tr2.setSelection(TextSelection3.create(tr2.doc, from, to));
+      if (args.restoreFocus) tr2.setSelection(TextSelection4.create(tr2.doc, from, to));
       editor.view.dispatch(tr2);
       if (args.restoreFocus) editor.view.focus();
       return true;
@@ -19933,15 +20191,15 @@ function createTextColor({
     if (args.style != null && !value) return false;
     const markType = editor.schema.marks.textStyle, parts = ranges(editor, from, to);
     if (!parts.length) return false;
-    const tr = closeHistory2(editor.state.tr);
+    const tr = closeHistory3(editor.state.tr);
     const attrs = value?.kind === "gradient" ? { gradient: { start: value.start, end: value.end, angle: value.angle } } : { color: value?.start ?? null };
     for (const part of parts) {
       tr.removeMark(part.from, part.to, markType);
       if (value) tr.addMark(part.from, part.to, markType.create(attrs));
     }
-    tr.setSelection(TextSelection3.create(tr.doc, from, to));
+    tr.setSelection(TextSelection4.create(tr.doc, from, to));
     editor.view.dispatch(tr);
-    editor.view.dispatch(closeHistory2(editor.state.tr).setMeta("addToHistory", false));
+    editor.view.dispatch(closeHistory3(editor.state.tr).setMeta("addToHistory", false));
     post("snapshot", snapshot());
     return true;
   }
@@ -19952,7 +20210,35 @@ function createTextColor({
   }
   return { mark, integration, command, formattingState };
 }
-var textColorDependencies = { Mark, Extension, Plugin, PluginKey, TextSelection, closeHistory };
+var textColorDependencies = { Mark, Extension, Plugin, PluginKey, TextSelection, closeHistory, Decoration, DecorationSet };
+
+// src/caption.js
+import { Node, mergeAttributes } from "@tiptap/core";
+var Caption = Node.create({
+  name: "caption",
+  group: "block",
+  content: "inline*",
+  defining: true,
+  parseHTML() {
+    return [{ tag: "p[data-vellix-caption]", priority: 100 }, { tag: "figcaption", priority: 100 }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["p", mergeAttributes(HTMLAttributes, {
+      "data-vellix-caption": "",
+      class: "vellix-caption",
+      style: "font-size:12px;font-weight:400;line-height:1.5;color:color-mix(in srgb,var(--vellix-primary-text) 75%,transparent)"
+    }), 0];
+  },
+  addKeyboardShortcuts() {
+    return {
+      Enter: () => this.editor.isActive("caption") ? this.editor.chain().splitBlock().setParagraph().run() : false,
+      Backspace: () => {
+        const { selection } = this.editor.state;
+        return selection.empty && selection.$from.parent.type.name === "caption" && selection.$from.parent.content.size === 0 ? this.editor.commands.setParagraph() : false;
+      }
+    };
+  }
+});
 
 // src/inline-properties.js
 var PROPERTY_KINDS = [
@@ -19966,8 +20252,8 @@ var PROPERTY_KINDS = [
 ];
 var string = (value) => typeof value === "string" ? value : "";
 var decimal = (value) => {
-  const clean = string(value).trim();
-  return clean && Number.isFinite(Number(clean)) ? clean : "";
+  const clean2 = string(value).trim();
+  return clean2 && Number.isFinite(Number(clean2)) ? clean2 : "";
 };
 function normalizeProperty(raw = {}) {
   raw = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
@@ -20001,18 +20287,439 @@ function normalizeProperty(raw = {}) {
   };
 }
 function propertyURL(value) {
-  const clean = string(value).trim();
-  if (!clean || /[\s\u0000-\u001f]/.test(clean)) return null;
+  const clean2 = string(value).trim();
+  if (!clean2 || /[\s\u0000-\u001f]/.test(clean2)) return null;
   try {
-    const url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(clean) ? clean : `https://${clean}`);
+    const url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(clean2) ? clean2 : `https://${clean2}`);
     return ["https:", "http:"].includes(url.protocol) && url.hostname && !url.username && !url.password ? url.href : null;
   } catch {
     return null;
   }
 }
 
+// src/clip-source.js
+function clipSource(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const url = propertyURL(value.url);
+  if (!url) return null;
+  return {
+    url,
+    title: typeof value.title === "string" && value.title.trim() ? value.title : url,
+    file: value.file && typeof value.file === "object" && !Array.isArray(value.file) ? value.file : null
+  };
+}
+function clipPreview(source, imageURL) {
+  return [
+    "a",
+    {
+      class: "penned-clip-source-link",
+      href: source.url,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      contenteditable: "false",
+      title: source.title,
+      "data-penned-clip-link": ""
+    },
+    ...imageURL ? [["img", { src: imageURL, alt: "", draggable: "false", decoding: "async" }]] : [],
+    ["span", { class: "penned-clip-source-title" }, source.title]
+  ];
+}
+function clipSavedDate(value, now = /* @__PURE__ */ new Date()) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/.test(value)) return null;
+  const date = new Date(value.length === 10 ? value + "T00:00:00" : value);
+  if (!Number.isFinite(date.getTime())) return null;
+  const day = date.toDateString(), today = now.toDateString(), yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  return {
+    day: day === today ? "Today" : day === yesterday.toDateString() ? "Yesterday" : date.toLocaleDateString(void 0, { dateStyle: "medium" }),
+    time: date.toLocaleTimeString(void 0, { hour: "numeric", minute: "2-digit" })
+  };
+}
+
+// src/callout-layout.js
+function calloutWidth(value) {
+  const width = Number(value);
+  return Number.isFinite(width) && width > 0 ? Math.max(1, Math.min(100, width)) : null;
+}
+function calloutRowMetrics(nodes) {
+  const children = Array.from(nodes);
+  const specified = children.reduce((sum, child) => sum + (calloutWidth(child.attrs?.widthPercent) || 0), 0);
+  const automatic = children.filter((child) => !calloutWidth(child.attrs?.widthPercent)).length;
+  const share = automatic ? Math.max(0, 100 - specified) / automatic : 0;
+  const widths = children.map((child) => calloutWidth(child.attrs?.widthPercent) || share || 100 / children.length);
+  const remaining = automatic ? 0 : Math.max(0, 100 - specified);
+  const cells = children.length + (remaining > 1 ? 1 : 0);
+  return { widths, remaining, gapShare: cells ? 12 * (cells - 1) / cells : 0 };
+}
+
+// src/grid-card.js
+var GRID_CARD_DEFAULTS = {
+  icon: "sparkle",
+  iconColor: "#ffffff",
+  backgroundColor: "#302d36",
+  title: "",
+  alignment: "left",
+  width: "full",
+  height: 100
+};
+function opaqueHex(value, fallback) {
+  if (typeof value !== "string") return fallback;
+  const hex = value.trim();
+  if (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(hex)) return hex.slice(0, 7);
+  if (/^#[0-9a-f]{3,4}$/i.test(hex)) return `#${[...hex.slice(1, 4)].map((c) => c + c).join("")}`;
+  return fallback;
+}
+function gridCardSettings(attrs = {}) {
+  const height = Number(attrs.height);
+  const iconColor = opaqueHex(attrs.iconColor ?? attrs.color, GRID_CARD_DEFAULTS.iconColor);
+  const defaultBackground = attrs.color && gridCardInk(iconColor) === "#ffffff" ? "#e5e3e8" : GRID_CARD_DEFAULTS.backgroundColor;
+  return {
+    icon: typeof attrs.icon === "string" && attrs.icon.trim() ? attrs.icon.trim() : GRID_CARD_DEFAULTS.icon,
+    iconColor,
+    backgroundColor: opaqueHex(attrs.backgroundColor, defaultBackground),
+    title: typeof attrs.title === "string" ? attrs.title : "",
+    alignment: ["left", "center", "right"].includes(attrs.alignment) ? attrs.alignment : "left",
+    width: attrs.width === "half" ? "half" : "full",
+    height: Number.isFinite(height) ? Math.round(Math.min(1600, Math.max(100, height))) : 100
+  };
+}
+function gridCardInk(background) {
+  const [r, g, b] = [1, 3, 5].map((index) => {
+    const channel = Number.parseInt(background.slice(index, index + 2), 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return r * 0.2126 + g * 0.7152 + b * 0.0722 >= 0.179 ? "#000000" : "#ffffff";
+}
+function gridCardDOMAttributes(attrs) {
+  const settings = gridCardSettings(attrs);
+  return {
+    "data-type": "penned-grid-card",
+    "data-grid-width": settings.width,
+    "data-grid-alignment": settings.alignment,
+    "data-grid-height": settings.height,
+    "data-grid-background": settings.backgroundColor,
+    style: `--vellix-callout-color:${settings.iconColor};--penned-grid-bg:${settings.backgroundColor};--penned-grid-ink:${gridCardInk(settings.backgroundColor)};--penned-grid-height:${settings.height}px;`
+  };
+}
+
+// src/heading-label.js
+import { mergeAttributes as mergeAttributes3 } from "@tiptap/core";
+
+// node_modules/@tiptap/extension-heading/dist/index.js
+import { mergeAttributes as mergeAttributes2, Node as Node2, textblockTypeInputRule } from "@tiptap/core";
+var Heading = Node2.create({
+  name: "heading",
+  addOptions() {
+    return {
+      levels: [1, 2, 3, 4, 5, 6],
+      HTMLAttributes: {}
+    };
+  },
+  content: "inline*",
+  group: "block",
+  defining: true,
+  addAttributes() {
+    return {
+      level: {
+        default: 1,
+        rendered: false
+      }
+    };
+  },
+  parseHTML() {
+    return this.options.levels.map((level) => ({
+      tag: `h${level}`,
+      attrs: { level }
+    }));
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    const hasLevel = this.options.levels.includes(node.attrs.level);
+    const level = hasLevel ? node.attrs.level : this.options.levels[0];
+    return [`h${level}`, mergeAttributes2(this.options.HTMLAttributes, HTMLAttributes), 0];
+  },
+  parseMarkdown: (token, helpers) => {
+    return helpers.createNode(
+      "heading",
+      { level: token.depth || 1 },
+      helpers.parseInline(token.tokens || [])
+    );
+  },
+  renderMarkdown: (node, h) => {
+    var _a;
+    const level = ((_a = node.attrs) == null ? void 0 : _a.level) ? parseInt(node.attrs.level, 10) : 1;
+    const headingChars = "#".repeat(level);
+    if (!node.content) {
+      return "";
+    }
+    return `${headingChars} ${h.renderChildren(node.content)}`;
+  },
+  addCommands() {
+    return {
+      setHeading: (attributes) => ({ commands }) => {
+        if (!this.options.levels.includes(attributes.level)) {
+          return false;
+        }
+        return commands.setNode(this.name, attributes);
+      },
+      toggleHeading: (attributes) => ({ commands }) => {
+        if (!this.options.levels.includes(attributes.level)) {
+          return false;
+        }
+        return commands.toggleNode(this.name, "paragraph", attributes);
+      }
+    };
+  },
+  addKeyboardShortcuts() {
+    return this.options.levels.reduce(
+      (items, level) => ({
+        ...items,
+        [`Mod-Alt-${level}`]: () => this.editor.commands.toggleHeading({ level })
+      }),
+      {}
+    );
+  },
+  addInputRules() {
+    return this.options.levels.map((level) => {
+      return textblockTypeInputRule({
+        find: new RegExp(`^(#{${Math.min(...this.options.levels)},${level}})\\s$`),
+        type: this.type,
+        getAttributes: {
+          level
+        }
+      });
+    });
+  }
+});
+
+// src/heading-label.js
+import { Fragment } from "@tiptap/pm/model";
+import { Plugin as Plugin2 } from "@tiptap/pm/state";
+
+// src/block-font.js
+var blockFontFamilies = Object.freeze({
+  system: "system-ui, sans-serif",
+  serif: "ui-serif, Georgia, serif",
+  mono: "ui-monospace, monospace",
+  rounded: "ui-rounded, system-ui, sans-serif"
+});
+
+// src/heading-label.js
+var LABEL_DEFAULTS = Object.freeze({
+  presentation: "text",
+  shape: "rectangular",
+  style: "filled",
+  font: "inherit",
+  alignment: "left",
+  textColor: "#281B36",
+  backgroundColor: "#D9C3F1",
+  borderColor: "#9E7EBC",
+  accentColor: "#8966A8",
+  iconEnabled: false,
+  icon: "sparkle",
+  iconColor: "#60437D"
+});
+var families = { ...blockFontFamilies, hachiMaruPop: '"HachiMaruPop", cursive' };
+var choices = {
+  presentation: ["text", "label"],
+  shape: ["ribbon", "pill", "framed", "rectangular"],
+  style: ["filled", "glass", "textured", "outline"],
+  font: ["inherit", ...Object.keys(families)],
+  alignment: ["left", "center", "right"]
+};
+var color = /^#[\da-f]{6}$/i;
+var icon = /^(?:sf:)?[\w.+-]{1,120}$/;
+var labelLevel = (level) => Number.isInteger(level) && level >= 1 && level <= 4;
+function labelSettings(raw) {
+  const settings = { ...LABEL_DEFAULTS };
+  if (!raw || typeof raw !== "object") return settings;
+  for (const key of Object.keys(settings)) {
+    const value = raw[key];
+    if (choices[key]?.includes(value) || key === "iconEnabled" && typeof value === "boolean" || typeof value === "string" && (key === "icon" ? icon.test(value) : key.endsWith("Color") && color.test(value))) {
+      settings[key] = value;
+    }
+  }
+  return settings;
+}
+var headingLabelAttribute = {
+  default: null,
+  keepOnSplit: false,
+  rendered: false,
+  parseHTML: (element) => {
+    try {
+      const raw = element.getAttribute("data-penned-heading-label");
+      return raw ? labelSettings(JSON.parse(raw)) : null;
+    } catch {
+      return null;
+    }
+  }
+};
+function createLabelHeading({ iconMask, post, selectionActive = () => false } = {}) {
+  return Heading.extend({
+    addAttributes() {
+      return { ...this.parent?.(), label: headingLabelAttribute };
+    },
+    parseHTML() {
+      return this.parent?.().map((rule) => ({ ...rule, contentElement: (element) => element.querySelector(":scope > .penned-label-tile > .penned-label-text") ?? element }));
+    },
+    renderHTML({ node, HTMLAttributes }) {
+      const settings = labelSettings(node.attrs.label);
+      if (!labelLevel(node.attrs.level) || !node.attrs.label) return this.parent({ node, HTMLAttributes });
+      const stored = { "data-penned-heading-label": JSON.stringify(settings) };
+      if (settings.presentation !== "label") return this.parent({ node, HTMLAttributes: mergeAttributes3(HTMLAttributes, stored) });
+      const mask = settings.iconEnabled ? iconMask?.(settings.icon) : null;
+      const properties = [
+        `--label-text:${settings.textColor}`,
+        `--label-bg:${settings.backgroundColor}`,
+        `--label-border:${settings.borderColor}`,
+        `--label-accent:${settings.accentColor}`,
+        `--label-icon:${settings.iconColor}`
+      ];
+      if (settings.font !== "inherit") properties.push(`--label-font:${families[settings.font]}`);
+      if (mask) properties.push(`--label-mask:${mask}`);
+      return [`h${node.attrs.level}`, mergeAttributes3(this.options.HTMLAttributes, HTMLAttributes, stored, {
+        class: "penned-heading-label",
+        "data-label-shape": settings.shape,
+        "data-label-style": settings.style,
+        "data-label-alignment": settings.alignment,
+        style: properties.join(";")
+      }), [
+        "span",
+        { class: "penned-label-tile" },
+        ...mask ? [["span", { class: "penned-label-icon", ...post ? { contenteditable: "false" } : {}, "aria-hidden": "true" }]] : [],
+        ["span", { class: "penned-label-text" }, 0]
+      ]];
+    },
+    addProseMirrorPlugins() {
+      if (!post) return [];
+      return [new Plugin2({ view(view) {
+        const root = view.dom, window2 = root.ownerDocument.defaultView;
+        const handlers = new AbortController(), options = { capture: true, signal: handlers.signal };
+        let press, consumed;
+        const tile = (event) => event.target?.closest?.(".penned-label-tile")?.parentElement;
+        const cancel = () => {
+          if (press) window2.clearTimeout(press.timer);
+          press = null;
+        };
+        root.addEventListener("pointerdown", (event) => {
+          cancel();
+          consumed = null;
+          const target = tile(event);
+          if (!target || event.button !== 0 || event.isPrimary === false || !view.editable || selectionActive()) return;
+          const pointer = event.pointerId;
+          const timer2 = window2.setTimeout(() => {
+            cancel();
+            if (!target.isConnected || !root.contains(target) || !view.editable || selectionActive()) return;
+            let pos;
+            try {
+              pos = view.posAtDOM(target.querySelector(".penned-label-text"), 0) - 1;
+            } catch {
+              return;
+            }
+            const node = view.state.doc.nodeAt(pos);
+            if (!node?.attrs.id || node.type.name !== "heading" || !labelLevel(node.attrs.level) || labelSettings(node.attrs.label).presentation !== "label") return;
+            consumed = target;
+            view.dom.blur();
+            post("headingLabelSettings", {
+              blockID: node.attrs.id,
+              level: node.attrs.level,
+              text: node.textBetween(0, node.content.size, "", "\n"),
+              settings: labelSettings(node.attrs.label)
+            });
+          }, 650);
+          press = { timer: timer2, pointer, target, x: event.clientX, y: event.clientY };
+        }, options);
+        window2.addEventListener("pointermove", (event) => {
+          if (press?.pointer === event.pointerId && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 9) cancel();
+        }, options);
+        for (const type of ["pointerup", "pointercancel", "scroll", "blur"]) window2.addEventListener(type, cancel, options);
+        root.addEventListener("selectstart", (event) => {
+          if (press && press.target === tile(event)) event.preventDefault();
+        }, options);
+        root.addEventListener("contextmenu", (event) => {
+          const target = tile(event);
+          if (target && (target === press?.target || target === consumed)) event.preventDefault();
+        }, options);
+        root.addEventListener("click", (event) => {
+          if (!consumed || tile(event) !== consumed) return;
+          consumed = null;
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }, options);
+        return { destroy() {
+          cancel();
+          handlers.abort();
+        } };
+      } })];
+    }
+  });
+}
+
+// src/document-links.js
+import { Extension as Extension2, Node as Node3, mergeAttributes as mergeAttributes4 } from "@tiptap/core";
+import { NodeSelection, TextSelection as TextSelection2 } from "@tiptap/pm/state";
+import { closeHistory as closeHistory2 } from "@tiptap/pm/history";
+var layouts = /* @__PURE__ */ new Set(["small", "regular", "card"]);
+var richLinkLayout = (value) => layouts.has(value) ? value : "regular";
+var clean = (value, limit) => typeof value === "string" ? value.trim().replace(/\s+/gu, " ").slice(0, limit) : "";
+function webLinkURL(value, base) {
+  if (typeof value !== "string" || !value.trim() || value.length > 4096 || /[\s\u0000-\u001f\u007f\\]/u.test(value.trim())) return null;
+  try {
+    const url = new URL(value.trim(), base);
+    return ["https:", "http:"].includes(url.protocol) && url.hostname && !url.username && !url.password ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+function richLinkMetadata(value) {
+  return {
+    title: clean(value?.title, 320),
+    description: clean(value?.description, 640),
+    site: clean(value?.site, 120),
+    image: webLinkURL(value?.image),
+    favicon: webLinkURL(value?.favicon)
+  };
+}
+var richLinkDefaults = { href: "", layout: "regular", metadata: null, sourceType: "paragraph", sourceLevel: null };
+function richLinkDOM(node, attrs = {}) {
+  const href = webLinkURL(node.attrs.href);
+  const metadata = richLinkMetadata(node.attrs.metadata);
+  const url = href ? new URL(href) : null;
+  const site = url ? `${url.host}${url.pathname === "/" ? "" : url.pathname}` : "";
+  const title = metadata.title || node.textContent || site || "Link";
+  const image = metadata.image || metadata.favicon;
+  const imageDOM = (src, className) => ["img", { src, class: className, alt: "", loading: "lazy", referrerpolicy: "no-referrer", draggable: "false" }];
+  const preview = [
+    "a",
+    { class: "penned-rich-link-preview", href, rel: "noopener noreferrer", target: "_blank", draggable: "false" },
+    [
+      "div",
+      { class: "penned-rich-link-main" },
+      ...image ? [imageDOM(image, `penned-rich-link-image${metadata.image ? "" : " penned-rich-link-favicon-only"}`)] : [],
+      [
+        "div",
+        { class: "penned-rich-link-copy" },
+        ["div", { class: "penned-rich-link-title" }, title],
+        ...metadata.description ? [["div", { class: "penned-rich-link-description" }, metadata.description]] : []
+      ]
+    ],
+    [
+      "div",
+      { class: "penned-rich-link-site" },
+      ...metadata.favicon ? [imageDOM(metadata.favicon, "penned-rich-link-favicon")] : [],
+      ["span", {}, metadata.site && metadata.site !== site ? `${metadata.site} \xB7 ${site}` : site]
+    ]
+  ];
+  return ["div", mergeAttributes4(attrs, {
+    class: "penned-rich-link",
+    "data-rich-link": "",
+    "data-link-layout": richLinkLayout(node.attrs.layout),
+    "data-link-info": JSON.stringify(metadata),
+    contenteditable: "false"
+  }), preview, ["span", { hidden: "", "data-link-text": "" }, 0]];
+}
+
 // src/template-components.js
-import { TextSelection as TextSelection2 } from "@tiptap/pm/state";
+import { TextSelection as TextSelection3 } from "@tiptap/pm/state";
 var kinds = /* @__PURE__ */ new Set(["rating", "singleSelect", "multiSelect", "slider"]);
 function componentDefinition(value) {
   if (!value || !kinds.has(value.kind)) throw new Error("Choose a valid template component.");
@@ -20026,19 +20733,19 @@ function componentDefinition(value) {
     maximumLabel: String(value.maximumLabel || ""),
     choices: Array.isArray(value.choices) ? value.choices.map((choice) => ({ id: String(choice.id || ""), label: String(choice.label || "").trim() })) : []
   };
-  const { kind, minimum, maximum, step, choices } = definition;
+  const { kind, minimum, maximum, step, choices: choices2 } = definition;
   if (![minimum, maximum, step].every(Number.isFinite) || Math.abs(minimum) > 1e9 || Math.abs(maximum) > 1e9) throw new Error("Enter finite component values.");
   if (kind === "rating" && (!Number.isInteger(minimum) || !Number.isInteger(maximum) || maximum <= minimum || maximum - minimum > 49)) throw new Error("Choose 2 to 50 whole-number ratings.");
   if (kind === "slider" && (maximum <= minimum || step <= 0 || step > maximum - minimum || !Number.isFinite((maximum - minimum) / step) || minimum + step === minimum || maximum - step === maximum)) throw new Error("Choose a valid slider range and step.");
-  if ((kind === "singleSelect" || kind === "multiSelect") && (!choices.length || choices.length > 100 || choices.some((choice) => !choice.id || !choice.label) || new Set(choices.map((choice) => choice.id)).size !== choices.length)) throw new Error("Add named, independently identified choices.");
+  if ((kind === "singleSelect" || kind === "multiSelect") && (!choices2.length || choices2.length > 100 || choices2.some((choice) => !choice.id || !choice.label) || new Set(choices2.map((choice) => choice.id)).size !== choices2.length)) throw new Error("Add named, independently identified choices.");
   if (kind === "rating") definition.step = 1;
   return definition;
 }
 function componentResponse(definition, value) {
-  const { kind, minimum, maximum, step, choices } = definition;
-  if (kind === "multiSelect") return choices.filter((choice) => Array.isArray(value) && value.includes(choice.id)).map((choice) => choice.id);
+  const { kind, minimum, maximum, step, choices: choices2 } = definition;
+  if (kind === "multiSelect") return choices2.filter((choice) => Array.isArray(value) && value.includes(choice.id)).map((choice) => choice.id);
   if (value == null) return null;
-  if (kind === "singleSelect") return choices.some((choice) => choice.id === value) ? value : null;
+  if (kind === "singleSelect") return choices2.some((choice) => choice.id === value) ? value : null;
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   if (kind === "rating") return Number.isInteger(value) && value >= minimum && value <= maximum ? value : null;
   const steps = Math.min(Math.floor((maximum - minimum) / step + 1e-9), Math.max(0, Math.round((value - minimum) / step)));
@@ -20077,6 +20784,7 @@ function componentResponse(definition, value) {
   function createWorkbook(tables, Parser = global.FormulaParser) {
     if (!Parser) throw new Error("The formula engine is unavailable.");
     const byName = /* @__PURE__ */ new Map(), byID = /* @__PURE__ */ new Map(), cache = /* @__PURE__ */ new Map(), active = /* @__PURE__ */ new Set(), parsers = [];
+    const dependencies = /* @__PURE__ */ new Map(), dependents = /* @__PURE__ */ new Map(), volatile = /* @__PURE__ */ new Set();
     let evaluations = 0;
     for (const table of tables) {
       byID.set(table.id, table);
@@ -20084,6 +20792,59 @@ function componentResponse(definition, value) {
       byName.set(name, byName.has(name) ? null : table);
     }
     const ErrorType = Parser.FormulaError;
+    const cellKey = (table, row, col) => `${table.id}:${row}:${col}`;
+    function forget(key) {
+      for (const dependency of dependencies.get(key) || []) {
+        const readers = dependents.get(dependency);
+        readers?.delete(key);
+        if (!readers?.size) dependents.delete(dependency);
+      }
+      dependencies.delete(key);
+      cache.delete(key);
+      volatile.delete(key);
+    }
+    function invalidate(keys2) {
+      const affected = new Set(keys2), pending = [...affected];
+      for (let index = 0; index < pending.length; index++) {
+        for (const reader of dependents.get(pending[index]) || []) if (!affected.has(reader)) {
+          affected.add(reader);
+          pending.push(reader);
+        }
+      }
+      for (const key of affected) forget(key);
+      return affected;
+    }
+    function update(next) {
+      let topology = next.length !== tables.length;
+      const changed = new Set(volatile);
+      for (const table of next) {
+        const old = byID.get(table.id);
+        if (!old || old.name !== table.name || old.cells.length !== table.cells.length || old.cells.some((line, row) => line.length !== table.cells[row]?.length)) {
+          topology = true;
+          continue;
+        }
+        if (old.node && old.node === table.node) continue;
+        table.cells.forEach((line, row) => line.forEach((cell, col) => {
+          const before = old.cells[row][col];
+          if (cell.id !== before.id) topology = true;
+          if (cell.value !== before.value || cell.formula !== before.formula || cell.format !== before.format) changed.add(cellKey(table, row, col));
+        }));
+      }
+      tables = next;
+      byID.clear();
+      byName.clear();
+      for (const table of tables) {
+        byID.set(table.id, table);
+        const name = table.name.toLowerCase();
+        byName.set(name, byName.has(name) ? null : table);
+      }
+      if (topology) {
+        cache.clear();
+        dependencies.clear();
+        dependents.clear();
+        volatile.clear();
+      } else invalidate(changed);
+    }
     function referenceTable(ref, owner) {
       if (!ref.sheet || ref.sheet.toLowerCase() === owner.name.toLowerCase()) return owner;
       const table = byName.get(ref.sheet.toLowerCase());
@@ -20091,15 +20852,25 @@ function componentResponse(definition, value) {
       return table;
     }
     function value(table, row, col) {
+      if (!table) throw ErrorType.REF;
+      const key = cellKey(table, row, col);
+      const owner = [...active].at(-1);
+      if (owner) {
+        if (!dependencies.has(owner)) dependencies.set(owner, /* @__PURE__ */ new Set());
+        if (!dependents.has(key)) dependents.set(key, /* @__PURE__ */ new Set());
+        dependencies.get(owner).add(key);
+        dependents.get(key).add(owner);
+      }
       if (++evaluations > 5e4 || active.size > 128) throw ErrorType.NUM;
       if (row < 0 || col < 0) throw ErrorType.REF;
       const cell = table.cells[row]?.[col];
       if (!cell) return null;
-      const key = `${table.id}:${row}:${col}`;
       if (cache.has(key)) return cache.get(key);
       if (active.has(key)) return new ErrorType("#CYCLE!");
       if (!cell.formula) return scalar(cell.value, cell.format);
       if (cell.formula.length > 2048) throw ErrorType.NUM;
+      forget(key);
+      if (/\b(?:NOW|TODAY|RAND|RANDBETWEEN)\s*\(/i.test(cell.formula)) volatile.add(key);
       active.add(key);
       try {
         const depth = active.size - 1;
@@ -20139,6 +20910,10 @@ function componentResponse(definition, value) {
       }
     }
     return {
+      update,
+      needsCalculation(tableID, row, col) {
+        return !cache.has(`${tableID}:${row}:${col}`);
+      },
       value(tableID, row, col) {
         evaluations = 0;
         try {
@@ -20237,11 +21012,12 @@ var documentFonts = {
   rounded: 'ui-rounded,"SF Pro Rounded","Nunito Variable",Nunito,system-ui,sans-serif',
   system: "system-ui,sans-serif",
   serif: "ui-serif,Georgia,serif",
-  mono: "ui-monospace,monospace"
+  mono: "ui-monospace,monospace",
+  hachiMaruPop: '"HachiMaruPop",cursive'
 };
 var validColor = (value) => typeof value === "string" && /^#(?:[\da-f]{3}|[\da-f]{6}|[\da-f]{8})$/i.test(value) ? value : null;
 var defaults2 = (values2) => Object.fromEntries(Object.entries(values2).map(([key, value]) => [key, { default: value, rendered: false }]));
-var text = (node) => node.type === "text" ? node.text || "" : (node.content || []).map(text).join(node.type === "paragraph" || node.type === "heading" ? "" : "\n");
+var text = (node) => node.type === "text" ? node.text || "" : (node.content || []).map(text).join(["paragraph", "caption", "heading"].includes(node.type) ? "" : "\n");
 var noOp = () => {
 };
 var style = (values2) => Object.entries(values2).filter(([, value]) => value != null).map(([key, value]) => `${key}:${value}`).join(";");
@@ -20290,7 +21066,7 @@ function publicExtensions(options) {
     if (typeof id !== "string" || !assets.has(id.toLowerCase())) throw new Error("Publication media is not in its manifest");
     return options.mediaURL(id.toLowerCase());
   };
-  const icon = (name) => {
+  const icon2 = (name) => {
     const source = options.iconURL(name);
     return source ? ["span", { class: "reader-icon", "aria-hidden": "true", style: `--reader-icon:url(${JSON.stringify(source)})` }] : ["span", { class: "reader-emoji", "aria-hidden": "true" }, String(name || "")];
   };
@@ -20308,7 +21084,7 @@ function publicExtensions(options) {
   };
   const propertyValue = (value, kind) => {
     if (Array.isArray(value?.chips) && value.chips.length) return value.chips.map((chip) => ["span", { class: "penned-collection-chip", style: `--chip-color:${validColor(chip.color) || "#B59AD9"}` }, chip.name]);
-    if (kind === "checkbox" && typeof value?.checked === "boolean") return [icon(value.checked ? "checkwavy" : "minuswavy"), ["span", {}, value.text || (value.checked ? "Checked" : "Unchecked")]];
+    if (kind === "checkbox" && typeof value?.checked === "boolean") return [icon2(value.checked ? "checkwavy" : "minuswavy"), ["span", {}, value.text || (value.checked ? "Checked" : "Unchecked")]];
     if (kind === "url" && propertyURL(value?.text)) return [["a", { href: propertyURL(value.text), rel: "noopener noreferrer", target: "_blank" }, value.text]];
     return [["span", { class: value?.empty ? "reader-muted" : "" }, value?.text || "Not set"]];
   };
@@ -20322,12 +21098,30 @@ function publicExtensions(options) {
     const [width, height] = sizes[card.size] || sizes.compact;
     const photo = card.mediaID ? media(card.mediaID) : safePhoto(card.remotePhoto?.imageURL);
     const background = card.backdrop === "none" ? "transparent" : card.backdrop === "photo" && photo ? `url(${JSON.stringify(photo)}) center/cover` : card.backdrop === "gradient" ? `linear-gradient(135deg,${validColor(card.startColor)},${validColor(card.endColor)})` : validColor(card.startColor);
-    const color = card.backdrop === "photo" ? "#fff" : contrastColor(card.startColor);
+    const color2 = card.backdrop === "photo" ? "#fff" : contrastColor(card.startColor);
     const miniature = (second) => [
       "span",
       { class: `reader-card-page${second ? " is-back" : ""}`, "aria-hidden": "true", style: `color:${validColor(record.textColorHex) || "#f7f7f7"};font-family:${documentFonts[record.fontStyle] || documentFonts.rounded}` },
       ...!second && cover(record) ? [cover(record)] : [],
       ...!second ? [["strong", {}, record.title], ["span", {}, record.excerpt || ""]] : []
+    ];
+    const sticky = card.previewStyle === "stickyNote";
+    const note = [
+      "span",
+      { class: "reader-sticky-note", "aria-hidden": "true" },
+      [
+        "span",
+        { class: "reader-sticky-note-paper" },
+        ["span", { class: "reader-sticky-note-content" }, ...cover(record) ? [cover(record)] : [], ["strong", {}, record.title], ["span", {}, record.excerpt || ""]]
+      ]
+    ];
+    const open = card.previewStyle === "openPage";
+    const spread = [
+      "span",
+      { class: "reader-open-page-spread", "aria-hidden": "true", style: `color:${validColor(record.textColorHex) || "#f7f7f7"};font-family:${documentFonts[record.fontStyle] || documentFonts.rounded}` },
+      ["span", { class: "reader-open-page-sheet" }],
+      ["span", { class: "reader-open-page-sheet is-right" }],
+      ["span", { class: "reader-open-page-flow" }, ...cover(record) ? [cover(record)] : [], ["span", {}, record.excerpt || ""]]
     ];
     const result = linked(
       record,
@@ -20335,13 +21129,14 @@ function publicExtensions(options) {
         class: "reader-page-card",
         "data-card-size": card.size,
         "data-card-pages": String(card.showsPages),
+        "data-card-preview": open ? "openPage" : sticky ? "stickyNote" : "pages",
         "data-card-width": String(width),
-        style: style({ "--card-width": `${width}px`, "--card-height": `${height}px`, "aspect-ratio": `${width}/${height}`, color })
+        style: style({ "--card-width": `${width}px`, "--card-height": `${height}px`, "aspect-ratio": `${width}/${height}`, color: color2 })
       },
       [[
         "span",
         { class: "reader-page-card-face", style: style({ background, "font-family": documentFonts[record.fontStyle] || documentFonts.rounded }) },
-        ...card.showsPages ? [["span", { class: "reader-card-pages" }, ...["wide", "large"].includes(card.size) ? [miniature(true)] : [], miniature(false)]] : [],
+        ...card.showsPages ? open ? [spread] : sticky ? [note] : [["span", { class: "reader-card-pages" }, ...["wide", "large"].includes(card.size) ? [miniature(true)] : [], miniature(false)]] : [],
         ["span", { class: "reader-page-card-copy" }, ["strong", {}, record.title], ["span", {}, record.excerpt || ""]]
       ]]
     );
@@ -20351,7 +21146,7 @@ function publicExtensions(options) {
     const views = record.views?.length ? record.views : [{ ...record, key: "view-0" }];
     const active = views.find((view) => view.key === record.activeViewKey) || views[0];
     const kindIcon = (kind) => ({ table: "table", gallery: "layoutgal", kanban: "gridboard" })[kind];
-    const readingIcon = (name, className = "") => ["span", { class: `penned-collection-button ${className}`, "aria-hidden": "true" }, icon(name)];
+    const readingIcon = (name, className = "") => ["span", { class: `penned-collection-button ${className}`, "aria-hidden": "true" }, icon2(name)];
     function viewContent(view) {
       const fields = view.fields || [], entries = view.entries || [];
       const values2 = (row) => fields.filter((field) => !row.values?.[field.key]?.empty).map((field) => ["div", { class: "penned-collection-value reader-collection-value" }, ...propertyValue(row.values?.[field.key], field.kind)]);
@@ -20367,7 +21162,7 @@ function publicExtensions(options) {
               "div",
               { class: "penned-collection-row penned-collection-heading", role: "row" },
               ["span", { role: "columnheader" }, "Title"],
-              ...fields.map((field) => ["span", { class: "penned-collection-button", role: "columnheader" }, icon(field.icon), ["span", {}, field.name]]),
+              ...fields.map((field) => ["span", { class: "penned-collection-button", role: "columnheader" }, icon2(field.icon), ["span", {}, field.name]]),
               readingIcon("addwavy")
             ],
             ...entries.map((row) => [
@@ -20385,11 +21180,11 @@ function publicExtensions(options) {
           return [
             "details",
             { class: "reader-kanban-column", ...group.collapsed ? {} : { open: "" }, style: `--column-color:${validColor(group.color) || "#34363f"};--column-ink:${contrastColor(group.color)}` },
-            ["summary", {}, icon("sf:chevron.down"), ["strong", {}, group.name], ["span", { class: "reader-column-count" }, String(rows.length)], readingIcon("sf:plus", "reader-column-add")],
+            ["summary", {}, icon2("sf:chevron.down"), ["strong", {}, group.name], ["span", { class: "reader-column-count" }, String(rows.length)], readingIcon("sf:plus", "reader-column-add")],
             ["div", { class: "reader-kanban-entries" }, ...rows.map((row) => [
               "div",
               { class: "reader-kanban-card" },
-              linked(row, { class: "reader-kanban-title" }, [["span", {}, row.title], icon("sf:chevron.right")]),
+              linked(row, { class: "reader-kanban-title" }, [["span", {}, row.title], icon2("sf:chevron.right")]),
               ...(() => {
                 const tags = fields.filter((field) => !row.values?.[field.key]?.empty).flatMap((field) => {
                   const value = row.values?.[field.key];
@@ -20399,7 +21194,7 @@ function publicExtensions(options) {
               })()
             ]), ...rows.length ? [readingIcon("sf:plus", "reader-kanban-add")] : []]
           ];
-        })], ["div", { class: "reader-kanban-footer", "aria-hidden": "true" }, ["span", {}, icon("addwavy"), "Add Column"], readingIcon("dotswavy")]];
+        })], ["div", { class: "reader-kanban-footer", "aria-hidden": "true" }, ["span", {}, icon2("addwavy"), "Add Column"], readingIcon("dotswavy")]];
       } else {
         content = [
           "div",
@@ -20408,7 +21203,7 @@ function publicExtensions(options) {
             "div",
             { class: "penned-collection-card reader-collection-card" },
             linked(row, { class: "penned-collection-card-open" }, [
-              ...view.showsCover ? [["div", { class: "penned-collection-cover" }, cover(row) || icon("imagesign")]] : [],
+              ...view.showsCover ? [["div", { class: "penned-collection-cover" }, cover(row) || icon2("imagesign")]] : [],
               ["span", { class: "penned-collection-card-title" }, row.title]
             ]),
             ["div", { class: "penned-collection-card-values" }, ...values2(row)],
@@ -20437,8 +21232,8 @@ function publicExtensions(options) {
         [
           "details",
           { class: "reader-view-menu" },
-          ["summary", { class: "penned-collection-button penned-collection-selector", "aria-label": "Collection views" }, ["span", { "data-current-view-name": "" }, active.viewName], icon("chevdown")],
-          ["div", { class: "reader-view-options", role: "group", "aria-label": "Saved collection views" }, ...views.map((view) => ["button", { type: "button", "data-select-collection-view": view.key, "aria-pressed": String(view.key === active.key) }, icon(kindIcon(view.kind)), ["span", {}, view.viewName], ["span", { class: "reader-view-check", "aria-hidden": "true" }, icon("checkwavy")]])]
+          ["summary", { class: "penned-collection-button penned-collection-selector", "aria-label": "Collection views" }, ["span", { "data-current-view-name": "" }, active.viewName], icon2("chevdown")],
+          ["div", { class: "reader-view-options", role: "group", "aria-label": "Saved collection views" }, ...views.map((view) => ["button", { type: "button", "data-select-collection-view": view.key, "aria-pressed": String(view.key === active.key) }, icon2(kindIcon(view.kind)), ["span", {}, view.viewName], ["span", { class: "reader-view-check", "aria-hidden": "true" }, icon2("checkwavy")]])]
         ],
         readingIcon("dotswavy")
       ],
@@ -20446,20 +21241,20 @@ function publicExtensions(options) {
     ];
   };
   const atoms = [
-    Node.create({ name: "publishedPage", group: "block", atom: true, addAttributes: () => defaults2({ preview: null }), renderHTML: ({ node }) => page(node.attrs.preview) }),
-    Node.create({ name: "publishedCollection", group: "block", atom: true, addAttributes: () => defaults2({ projection: null }), renderHTML: ({ node }) => collection(node.attrs.projection) }),
-    ...["privateReference", "privateCollection"].map((name) => Node.create({
+    Node4.create({ name: "publishedPage", group: "block", atom: true, addAttributes: () => defaults2({ preview: null }), renderHTML: ({ node }) => page(node.attrs.preview) }),
+    Node4.create({ name: "publishedCollection", group: "block", atom: true, addAttributes: () => defaults2({ projection: null }), renderHTML: ({ node }) => collection(node.attrs.projection) }),
+    ...["privateReference", "privateCollection"].map((name) => Node4.create({
       name,
       group: "block",
       atom: true,
-      renderHTML: () => ["div", { class: "reader-legacy-reference" }, icon("linedpages"), ["span", {}, name === "privateReference" ? "Linked page unavailable in this saved publication" : "Collection unavailable in this saved publication"]]
+      renderHTML: () => ["div", { class: "reader-legacy-reference" }, icon2("linedpages"), ["span", {}, name === "privateReference" ? "Linked page unavailable in this saved publication" : "Collection unavailable in this saved publication"]]
     })),
-    Node.create({ name: "divider", group: "block", atom: true, addAttributes: () => defaults2({ style: "thinLine" }), renderHTML: ({ node }) => {
+    Node4.create({ name: "divider", group: "block", atom: true, addAttributes: () => defaults2({ style: "thinLine" }), renderHTML: ({ node }) => {
       const type = ["thinLine", "thickLine", "dottedCircles", "fourCircles"].includes(node.attrs.style) ? node.attrs.style : "thinLine";
       return ["div", { "data-vellix-divider": "", "data-divider-style": type, role: "separator" }, type === "fourCircles" ? ["span", { class: "vellix-divider-four-circles" }, ...Array.from({ length: 4 }, () => ["i", { class: "vellix-divider-circle" }])] : ["span", { class: type === "dottedCircles" ? "vellix-divider-dots" : "vellix-divider-line" }]];
     } }),
-    Node.create({ name: "pageBreak", group: "block", atom: true, renderHTML: () => ["div", { "data-vellix-page-break": "", "aria-hidden": "true" }] }),
-    Node.create({
+    Node4.create({ name: "pageBreak", group: "block", atom: true, renderHTML: () => ["div", { "data-vellix-page-break": "", "aria-hidden": "true" }] }),
+    Node4.create({
       name: "inlineTag",
       group: "inline",
       inline: true,
@@ -20467,14 +21262,14 @@ function publicExtensions(options) {
       addAttributes: () => defaults2({ name: "" }),
       renderHTML: ({ node }) => ["span", { class: "penned-inline-tag" }, "#" + node.attrs.name]
     }),
-    Node.create({ name: "attachment", group: "block", atom: true, addAttributes: () => defaults2({ file: null, displayMode: "auto", widthPercent: null }), renderHTML: ({ node }) => {
+    Node4.create({ name: "attachment", group: "block", atom: true, addAttributes: () => defaults2({ file: null, displayMode: "auto", widthPercent: null }), renderHTML: ({ node }) => {
       const file = node.attrs.file, asset = assets.get(file.mediaID.toLowerCase());
       if (!asset) throw new Error("Missing attachment descriptor");
       const url = media(asset.id), isCard = ["card", "file"].includes(node.attrs.displayMode), width = Number(node.attrs.widthPercent);
       const link = [
         "a",
         { class: "penned-file-card", href: url, target: "_blank", rel: "noopener noreferrer", "data-reader-file": "" },
-        icon(file.kind === "pdf" ? "linedpages" : "pagefold"),
+        icon2(file.kind === "pdf" ? "linedpages" : "pagefold"),
         ["span", { class: "penned-file-info" }, ["strong", {}, asset.name], ["small", {}, `${asset.mimeType} \xB7 ${formatBytes(asset.size)}`]]
       ];
       const attrs = { class: "penned-attachment reader-attachment", style: Number.isFinite(width) && width >= 10 && width <= 100 ? `width:${width}%` : node.attrs.displayMode === "inline" ? "width:fit-content" : "" };
@@ -20502,8 +21297,20 @@ function publicExtensions(options) {
       ];
       return ["figure", attrs, link];
     } }),
-    Node.create({ name: "inlineProperty", group: "block", atom: true, addAttributes: () => defaults2({ property: null }), renderHTML: ({ node }) => {
+    Node4.create({ name: "inlineProperty", group: "block", atom: true, addAttributes: () => defaults2({ property: null, readerClipSaved: false }), renderHTML: ({ node }) => {
       const property = normalizeProperty(node.attrs.property), kind = PROPERTY_KINDS.find((item) => item.kind === property.kind);
+      const saved = node.attrs.readerClipSaved && property.kind === "date" ? clipSavedDate(property.value) : null;
+      if (saved) return [
+        "div",
+        { class: "vellix-property reader-property penned-clip-saved" },
+        ["span", { class: "vellix-property-name" }, property.name || "Saved"],
+        [
+          "div",
+          { class: "vellix-property-value" },
+          ["span", { class: "vellix-property-date" }, icon2("numcal"), ["span", {}, saved.day]],
+          ...property.includeTime ? [["span", { class: "penned-clip-saved-time" }, "at " + saved.time]] : []
+        ]
+      ];
       const value = {
         text: property.kind === "number" && property.value ? `${property.prefix}${property.value}${property.suffix}` : property.value,
         checked: property.kind === "checkbox" ? property.checked : void 0,
@@ -20513,11 +21320,11 @@ function publicExtensions(options) {
       return [
         "div",
         { class: "vellix-property reader-property" },
-        ["div", { class: "vellix-property-name" }, icon(node.attrs.property?.icon || kind?.icon || "linedpages"), ["span", {}, property.name || kind?.title || "Property"]],
+        ["div", { class: "vellix-property-name" }, icon2(node.attrs.property?.icon || kind?.icon || "linedpages"), ["span", {}, property.name || kind?.title || "Property"]],
         ["div", { class: "vellix-property-value" }, ...propertyValue(value, property.kind)]
       ];
     } }),
-    Node.create({ name: "templateComponent", group: "block", atom: true, addAttributes: () => defaults2({ definition: null, response: null }), renderHTML: ({ node }) => {
+    Node4.create({ name: "templateComponent", group: "block", atom: true, addAttributes: () => defaults2({ definition: null, response: null }), renderHTML: ({ node }) => {
       const definition = componentDefinition(node.attrs.definition), response = componentResponse(definition, node.attrs.response);
       const { kind, minimum, maximum } = definition;
       const label = definition.label ? [["strong", { class: "reader-component-label" }, definition.label]] : [];
@@ -20528,34 +21335,92 @@ function publicExtensions(options) {
         ["input", { type: "range", disabled: "", min: minimum, max: maximum, step: definition.step, value: response ?? minimum, "aria-label": definition.label || "Slider" }],
         ["div", { class: "reader-slider-values" }, ["span", {}, definition.minimumLabel || String(minimum)], ["strong", {}, response == null ? "Not set" : String(response)], ["span", {}, definition.maximumLabel || String(maximum)]]
       ];
-      const choices = kind === "rating" ? Array.from({ length: maximum - minimum + 1 }, (_, i) => ({ id: minimum + i, label: String(minimum + i) })) : definition.choices;
-      return ["section", { class: "penned-template-component reader-component" }, ...label, ["div", { class: "penned-component-choices" }, ...choices.map((choice) => {
+      const choices2 = kind === "rating" ? Array.from({ length: maximum - minimum + 1 }, (_, i) => ({ id: minimum + i, label: String(minimum + i) })) : definition.choices;
+      return ["section", { class: "penned-template-component reader-component" }, ...label, ["div", { class: "penned-component-choices" }, ...choices2.map((choice) => {
         const selected = Array.isArray(response) ? response.includes(choice.id) : response === choice.id;
-        return ["span", { class: `penned-component-choice reader-component-choice${selected ? " is-selected" : ""}` }, ...selected ? [icon("checkwavy")] : [], choice.label];
+        return ["span", { class: `penned-component-choice reader-component-choice${selected ? " is-selected" : ""}` }, ...selected ? [icon2("checkwavy")] : [], choice.label];
       })]];
     } })
   ];
   const blocks = [
-    ...["callout", "plainCallout", "blockquote", "toggleItem"].map((name) => Node.create({
+    Node4.create({
+      name: "richLink",
+      group: "block",
+      content: "inline*",
+      atom: true,
+      addAttributes: () => defaults2(richLinkDefaults),
+      renderHTML: ({ node, HTMLAttributes }) => richLinkDOM(node, HTMLAttributes)
+    }),
+    Node4.create({
+      name: "gridCard",
+      group: "block",
+      content: "block+",
+      defining: true,
+      addAttributes: () => defaults2(GRID_CARD_DEFAULTS),
+      renderHTML: ({ node, HTMLAttributes }) => {
+        const card = gridCardSettings(node.attrs);
+        return [
+          "div",
+          { ...HTMLAttributes, ...gridCardDOMAttributes(card), class: "vellix-callout penned-grid-card" },
+          [
+            "div",
+            { class: "penned-grid-card-header" },
+            ["span", { class: "vellix-callout-icon-button", style: `color:${card.iconColor}`, "aria-hidden": "true" }, icon2(card.icon)],
+            ["div", { class: "penned-grid-card-title" }, card.title]
+          ],
+          ["div", { class: "vellix-callout-text" }, 0]
+        ];
+      }
+    }),
+    Node4.create({
+      name: "plainCalloutRow",
+      group: "block",
+      content: "block*",
+      renderHTML: ({ node }) => [
+        "div",
+        {
+          class: "penned-callout-row",
+          "data-plain-callout-row": "",
+          style: `--penned-callout-gap-share:${calloutRowMetrics(node.content.content).gapShare}px;`
+        },
+        ["div", { class: "penned-callout-row-content" }, 0]
+      ]
+    }),
+    ...["callout", "plainCallout", "blockquote", "toggleItem"].map((name) => Node4.create({
       name,
       group: "block",
       content: "block+",
       defining: true,
-      addAttributes: () => defaults2({ color: "#ffffff", icon: "sparkle", open: true }),
+      addAttributes: () => defaults2({
+        color: "#ffffff",
+        icon: "sparkle",
+        open: true,
+        clipSource: null,
+        ...name === "plainCallout" ? { widthPercent: null } : {}
+      }),
       renderHTML: ({ node, HTMLAttributes }) => {
-        const color = validColor(node.attrs.color) || "#ffffff";
+        const color2 = validColor(node.attrs.color) || "#ffffff";
+        const width = name === "plainCallout" && calloutWidth(node.attrs.widthPercent);
+        const widthStyle = width ? `--penned-callout-width:${width}%;` : "";
+        const source = name === "plainCallout" ? clipSource(node.attrs.clipSource) : null;
+        if (source) return [
+          "div",
+          { ...HTMLAttributes, class: "vellix-plain-callout penned-clip-source", style: widthStyle },
+          clipPreview(source, source.file?.mediaID ? media(source.file.previewMediaID || source.file.mediaID) : ""),
+          ["div", { class: "vellix-plain-callout-text penned-clip-source-content" }, 0]
+        ];
         if (name === "toggleItem") return ["div", { ...HTMLAttributes, class: "reader-toggle", "data-reader-toggle": String(node.attrs.open !== false) }, 0];
-        if (name === "blockquote") return ["blockquote", { ...HTMLAttributes, "data-blockquote-color": color, style: `--vellix-blockquote-color:${color}` }, 0];
+        if (name === "blockquote") return ["blockquote", { ...HTMLAttributes, "data-blockquote-color": color2, style: `--vellix-blockquote-color:${color2}` }, 0];
         return [
           "div",
-          { ...HTMLAttributes, class: name === "callout" ? "vellix-callout" : "vellix-plain-callout", style: `--vellix-callout-color:${color}` },
-          ...name === "callout" ? [["span", { class: "vellix-callout-icon-button", "aria-hidden": "true", style: `color:${color}` }, icon(node.attrs.icon)]] : [],
+          { ...HTMLAttributes, class: name === "callout" ? "vellix-callout" : "vellix-plain-callout", style: `${widthStyle}--vellix-callout-color:${color2}` },
+          ...name === "callout" ? [["span", { class: "vellix-callout-icon-button", "aria-hidden": "true", style: `color:${color2}` }, icon2(node.attrs.icon)]] : [],
           ["div", { class: name === "callout" ? "vellix-callout-text" : "vellix-plain-callout-text" }, 0]
         ];
       }
     })),
-    Node.create({ name: "taskList", group: "block list", content: "taskItem+", renderHTML: () => ["ul", { "data-type": "taskList" }, 0] }),
-    Node.create({ name: "taskItem", content: "paragraph block*", defining: true, addAttributes: () => defaults2({ checked: false, crossed: false }), renderHTML: ({ node }) => [
+    Node4.create({ name: "taskList", group: "block list", content: "taskItem+", renderHTML: () => ["ul", { "data-type": "taskList" }, 0] }),
+    Node4.create({ name: "taskItem", content: "paragraph block*", defining: true, addAttributes: () => defaults2({ checked: false, crossed: false }), renderHTML: ({ node }) => [
       "li",
       { "data-type": "taskItem", "data-crossed": String(node.attrs.crossed) },
       [
@@ -20566,7 +21431,7 @@ function publicExtensions(options) {
       ],
       ["div", {}, 0]
     ] }),
-    Node.create({
+    Node4.create({
       name: "table",
       group: "block",
       content: "tableRow*",
@@ -20587,8 +21452,8 @@ function publicExtensions(options) {
         ]
       ]
     }),
-    Node.create({ name: "tableRow", content: "(tableCell | tableHeader)+", renderHTML: () => ["tr", {}, 0] }),
-    ...["tableCell", "tableHeader"].map((name) => Node.create({
+    Node4.create({ name: "tableRow", content: "(tableCell | tableHeader)+", renderHTML: () => ["tr", {}, 0] }),
+    ...["tableCell", "tableHeader"].map((name) => Node4.create({
       name,
       content: "block+",
       isolating: true,
@@ -20598,17 +21463,367 @@ function publicExtensions(options) {
         return [name === "tableHeader" ? "th" : "td", { colspan: a.colspan, rowspan: a.rowspan, style: style({
           "background-color": validColor(a.fillColor),
           color: validColor(a.textColor),
-          "font-family": a.code ? documentFonts.mono : documentFonts[a.font],
+          "font-family": a.code && a.font !== "hachiMaruPop" ? "var(--vellix-code-font-family,ui-monospace),monospace" : documentFonts[a.font],
           "font-weight": a.bold == null ? null : a.bold ? 700 : 400,
           "font-style": a.italic ? "italic" : null,
           "text-decoration": a.strike ? "line-through" : null,
           "text-align": ["left", "center", "right", "justify"].includes(a.align) ? a.align : "left"
         }) }, 0];
       }
-    }))
+    })),
+    Node4.create({
+      name: "listGrid",
+      group: "block",
+      content: "listGridRow+",
+      isolating: true,
+      defining: true,
+      addAttributes: () => defaults2({ cardBackground: "#E8DEF5", cardBorder: "#DBCEEF", leftBackground: "#D3C6E7", rightBorder: "#E4D9F3", leftFraction: 34 }),
+      renderHTML: ({ node }) => {
+        const a = node.attrs;
+        const frac = Math.max(20, Math.min(80, Math.round(Number(a.leftFraction)) || 34));
+        return ["div", { class: "penned-list-grid", style: style({
+          "box-sizing": "border-box",
+          width: "100%",
+          "max-width": "100%",
+          padding: "12px",
+          "border-radius": "18px",
+          background: validColor(a.cardBackground) || "#E8DEF5",
+          border: `1px solid ${validColor(a.cardBorder) || "#DBCEEF"}`,
+          display: "flex",
+          "flex-direction": "column",
+          gap: "8px",
+          overflow: "hidden",
+          "--lg-left-bg": validColor(a.leftBackground) || "#D3C6E7",
+          "--lg-right-border": validColor(a.rightBorder) || "#E4D9F3",
+          "--lg-left-fraction": `${frac}%`
+        }) }, 0];
+      }
+    }),
+    Node4.create({
+      name: "listGridRow",
+      content: "listGridLabel listGridValue",
+      isolating: true,
+      renderHTML: () => ["div", { class: "penned-list-grid-row", style: "display:grid;grid-template-columns:var(--lg-left-fraction,34%) minmax(0,1fr);gap:8px;align-items:stretch" }, 0]
+    }),
+    Node4.create({
+      name: "listGridLabel",
+      content: "paragraph",
+      isolating: true,
+      defining: true,
+      renderHTML: () => ["div", { class: "penned-list-grid-label", style: "box-sizing:border-box;min-width:0;display:flex;align-items:center;padding:10px 14px;border-radius:12px;background:var(--lg-left-bg,#D3C6E7);font-weight:700;color:var(--vellix-primary-text,#211d29);overflow-wrap:anywhere" }, 0]
+    }),
+    Node4.create({
+      name: "listGridValue",
+      content: "paragraph",
+      isolating: true,
+      defining: true,
+      renderHTML: () => ["div", { class: "penned-list-grid-value", style: "box-sizing:border-box;min-width:0;display:flex;align-items:center;padding:10px 14px;border-radius:12px;background:#ffffff;border:1px solid var(--lg-right-border,#E4D9F3);color:var(--vellix-primary-text,#211d29);overflow-wrap:anywhere" }, 0]
+    }),
+    Node4.create({
+      name: "tabs",
+      group: "block",
+      content: "tabPanel+",
+      isolating: true,
+      defining: true,
+      addAttributes: () => defaults2({
+        activeTab: null,
+        showContainer: true,
+        showHeader: false,
+        title: "",
+        subtitle: "",
+        icon: "",
+        tabBarStyle: "filled",
+        activeTabBg: "#3A3A3C",
+        activeTabText: "#FFFFFF",
+        inactiveTabBg: "#1C1C1E",
+        inactiveTabText: "#9A9AA0",
+        indicatorColor: "#7C5CFF",
+        containerBg: "#111113",
+        containerBorder: "#2A2A2E",
+        borderWidth: 1,
+        cornerRadius: 16,
+        padding: 14,
+        outerSpacing: 8,
+        shadow: false,
+        titleColor: "#FFFFFF",
+        subtitleColor: "#9A9AA0",
+        tabCornerRadius: 10,
+        tabSpacing: 8,
+        alignment: "leading",
+        dividerVisible: true
+      }),
+      renderHTML: ({ node }) => {
+        const a = node.attrs;
+        const num = (value, lo, hi, fallback) => {
+          const n = Math.round(Number(value));
+          return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : fallback;
+        };
+        const barStyle = ["filled", "underlined", "segmented", "minimal"].includes(a.tabBarStyle) ? a.tabBarStyle : "filled";
+        const align = ["leading", "center", "trailing"].includes(a.alignment) ? a.alignment : "leading";
+        const aBg = validColor(a.activeTabBg) || "#3A3A3C", aText = validColor(a.activeTabText) || "#FFFFFF";
+        const inBg = validColor(a.inactiveTabBg) || "#1C1C1E", inText = validColor(a.inactiveTabText) || "#9A9AA0";
+        const indicator = validColor(a.indicatorColor) || "#7C5CFF";
+        const tabCorner = num(a.tabCornerRadius, 0, 24, 10), tabGap = num(a.tabSpacing, 0, 32, 8);
+        const container = a.showContainer !== false, divider = a.dividerVisible !== false;
+        const panels = [];
+        node.forEach((panel) => {
+          if (panel.type.name === "tabPanel") panels.push(panel);
+        });
+        const activeId = panels.some((p) => p.attrs.id === a.activeTab) ? a.activeTab : panels[0]?.attrs.id ?? null;
+        const button = (panel, index) => {
+          const active = panel.attrs.id === activeId;
+          const name = panel.attrs.name && String(panel.attrs.name).trim() ? panel.attrs.name : `Tab ${index + 1}`;
+          const base = {
+            "font-weight": 600,
+            "font-size": "15px",
+            "line-height": 1.1,
+            cursor: "pointer",
+            border: "0",
+            "max-width": "100%",
+            overflow: "hidden",
+            "text-overflow": "ellipsis",
+            "white-space": "nowrap"
+          };
+          let decor;
+          if (barStyle === "underlined") decor = {
+            background: "transparent",
+            padding: "8px 10px",
+            "border-radius": "0",
+            color: active ? aText : inText,
+            "border-bottom": `2px solid ${active ? indicator : "transparent"}`
+          };
+          else if (barStyle === "minimal") decor = { background: "transparent", padding: "6px 8px", color: active ? aText : inText };
+          else if (barStyle === "segmented") decor = {
+            flex: "1 1 0",
+            padding: "9px 16px",
+            "border-radius": `${tabCorner}px`,
+            background: active ? aBg : "transparent",
+            color: active ? aText : inText
+          };
+          else decor = { padding: "9px 16px", "border-radius": `${tabCorner}px`, background: active ? aBg : inBg, color: active ? aText : inText };
+          return ["button", {
+            type: "button",
+            class: "penned-tab",
+            "data-select-tab": panel.attrs.id || "",
+            "aria-pressed": String(active),
+            style: style({ ...base, ...decor })
+          }, name];
+        };
+        const justify = align === "center" ? "center" : align === "trailing" ? "flex-end" : "flex-start";
+        const barWrap = barStyle === "segmented" ? { display: "flex", "flex-wrap": "nowrap", gap: "4px", padding: "4px", background: inBg, "border-radius": `${tabCorner + 4}px` } : {
+          display: "flex",
+          "flex-wrap": "wrap",
+          "align-items": "center",
+          gap: `${tabGap}px`,
+          "justify-content": justify,
+          ...divider ? { "border-bottom": `1px solid ${validColor(a.containerBorder) || "#2A2A2E"}`, "padding-bottom": "10px" } : {}
+        };
+        const header = a.showHeader ? [[
+          "div",
+          { class: "penned-tabs-header", style: "display:flex;align-items:center;gap:12px;min-width:0" },
+          ...a.icon ? [["span", {
+            class: "penned-tabs-header-icon",
+            "aria-hidden": "true",
+            style: style({ display: "inline-block", width: "24px", height: "24px", flex: "0 0 24px", color: indicator })
+          }, icon2(a.icon)]] : [],
+          [
+            "div",
+            { style: "min-width:0;display:flex;flex-direction:column;gap:2px" },
+            ["div", { class: "penned-tabs-title", style: style({ color: validColor(a.titleColor) || "#FFFFFF", "font-weight": 800, "font-size": "20px", "line-height": 1.15 }) }, a.title || "Untitled"],
+            ...a.subtitle ? [["div", { class: "penned-tabs-subtitle", style: style({ color: validColor(a.subtitleColor) || "#9A9AA0", "font-size": "13px", "line-height": 1.25 }) }, a.subtitle]] : []
+          ]
+        ]] : [];
+        const wrapStyle = style({
+          "box-sizing": "border-box",
+          width: "100%",
+          "max-width": "100%",
+          "min-width": 0,
+          display: "flex",
+          "flex-direction": "column",
+          gap: "12px",
+          margin: `${num(a.outerSpacing, 0, 40, 8)}px 0`,
+          ...container ? {
+            background: validColor(a.containerBg) || "#111113",
+            border: `${num(a.borderWidth, 0, 8, 1)}px solid ${validColor(a.containerBorder) || "#2A2A2E"}`,
+            "border-radius": `${num(a.cornerRadius, 0, 40, 16)}px`,
+            padding: `${num(a.padding, 0, 40, 14)}px`,
+            ...a.shadow ? { "box-shadow": "0 12px 34px rgba(0,0,0,0.34)" } : {}
+          } : {}
+        });
+        return [
+          "div",
+          {
+            class: "penned-tabs",
+            "data-tabs": "",
+            "data-active-tab": activeId || void 0,
+            "data-pt-style": barStyle,
+            style: wrapStyle
+          },
+          ...header,
+          [
+            "div",
+            { class: "penned-tabs-bar", role: "tablist" },
+            ["div", { style: style(barWrap) }, ...panels.map(button)]
+          ],
+          ["div", { class: "penned-tab-panels", style: "min-width:0" }, 0]
+        ];
+      }
+    }),
+    Node4.create({
+      name: "tabPanel",
+      content: "block+",
+      isolating: true,
+      defining: true,
+      addAttributes: () => defaults2({ id: null, name: "", readerActive: false }),
+      renderHTML: ({ node }) => ["div", {
+        class: "penned-tab-panel",
+        role: "tabpanel",
+        "data-tab-id": typeof node.attrs.id === "string" ? node.attrs.id : void 0,
+        ...node.attrs.readerActive ? {} : { hidden: "" },
+        style: "min-width:0"
+      }, 0]
+    }),
+    Node4.create({
+      name: "minimalFields",
+      group: "block",
+      content: "minimalRecord+",
+      isolating: true,
+      defining: true,
+      addAttributes: () => defaults2({ outerSpacing: 8 }),
+      renderHTML: ({ node }) => {
+        const n = Math.round(Number(node.attrs.outerSpacing));
+        const outer = Number.isFinite(n) ? Math.max(0, Math.min(40, n)) : 8;
+        return ["div", {
+          class: "penned-minimal-fields",
+          "data-minimal-fields": "",
+          style: style({
+            "box-sizing": "border-box",
+            width: "100%",
+            "max-width": "100%",
+            "min-width": 0,
+            display: "flex",
+            "flex-direction": "column",
+            margin: `${outer}px 0`
+          })
+        }, 0];
+      }
+    }),
+    Node4.create({
+      name: "minimalRecord",
+      content: "minimalRecordTitle minimalField+",
+      isolating: true,
+      defining: true,
+      addAttributes: () => defaults2({ mf: null, mfFirst: false }),
+      renderHTML: ({ node }) => {
+        const num = (v, lo, hi, fb) => {
+          const n = Math.round(Number(v));
+          return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : fb;
+        };
+        const a = node.attrs.mf || {};
+        const s = {
+          position: "relative",
+          "box-sizing": "border-box",
+          "min-width": 0,
+          "padding-left": "16px",
+          "border-left": `${num(a.accentWidth, 1, 8, 3)}px solid ${validColor(a.accentColor) || "#7C5CFF"}`
+        };
+        if (!node.attrs.mfFirst) {
+          s["margin-top"] = `${num(a.recordSpacing, 0, 48, 18)}px`;
+          if (a.dividerVisible !== false) {
+            s["border-top"] = `1px solid ${validColor(a.dividerColor) || "#2A2A2E"}`;
+            s["padding-top"] = `${num(a.recordSpacing, 0, 48, 18)}px`;
+          }
+        }
+        return ["div", { class: "penned-minimal-record", style: style(s) }, 0];
+      }
+    }),
+    Node4.create({
+      name: "minimalRecordTitle",
+      content: "inline*",
+      defining: true,
+      addAttributes: () => defaults2({ mf: null }),
+      renderHTML: ({ node }) => {
+        const num = (v, lo, hi, fb) => {
+          const n = Math.round(Number(v));
+          return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : fb;
+        };
+        const a = node.attrs.mf || {};
+        return ["div", { class: "penned-minimal-title", style: style({
+          color: validColor(a.titleColor) || "#FFFFFF",
+          "font-weight": 800,
+          "font-size": `${num(a.titleSize, 14, 32, 20)}px`,
+          "line-height": 1.2,
+          "min-width": 0,
+          "overflow-wrap": "anywhere"
+        }) }, 0];
+      }
+    }),
+    Node4.create({
+      name: "minimalField",
+      content: "minimalFieldLabel minimalFieldValue",
+      isolating: true,
+      defining: true,
+      addAttributes: () => defaults2({ mf: null }),
+      renderHTML: ({ node }) => {
+        const num = (v, lo, hi, fb) => {
+          const n = Math.round(Number(v));
+          return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : fb;
+        };
+        const a = node.attrs.mf || {};
+        return ["div", {
+          class: "penned-minimal-field",
+          style: style({ "min-width": 0, "margin-top": `${num(a.fieldSpacing, 0, 32, 12)}px` })
+        }, 0];
+      }
+    }),
+    Node4.create({
+      name: "minimalFieldLabel",
+      content: "inline*",
+      defining: true,
+      addAttributes: () => defaults2({ mf: null }),
+      renderHTML: ({ node }) => {
+        const num = (v, lo, hi, fb) => {
+          const n = Math.round(Number(v));
+          return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : fb;
+        };
+        const a = node.attrs.mf || {};
+        const s = {
+          color: validColor(a.labelColor) || "#B98CFF",
+          "font-weight": 700,
+          "font-size": `${num(a.labelSize, 9, 18, 12)}px`,
+          "line-height": 1.3,
+          "letter-spacing": "0.04em",
+          "min-width": 0,
+          "overflow-wrap": "anywhere"
+        };
+        if (a.labelUppercase !== false) s["text-transform"] = "uppercase";
+        return ["div", { class: "penned-minimal-label", style: style(s) }, 0];
+      }
+    }),
+    Node4.create({
+      name: "minimalFieldValue",
+      content: "block+",
+      isolating: true,
+      defining: true,
+      addAttributes: () => defaults2({ mf: null }),
+      renderHTML: ({ node }) => {
+        const num = (v, lo, hi, fb) => {
+          const n = Math.round(Number(v));
+          return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : fb;
+        };
+        const a = node.attrs.mf || {};
+        return ["div", { class: "penned-minimal-value", style: style({
+          color: validColor(a.valueColor) || "#E4E4EA",
+          "font-size": `${num(a.valueSize, 11, 22, 15)}px`,
+          "line-height": 1.4,
+          "margin-top": "2px",
+          "min-width": 0
+        }) }, 0];
+      }
+    })
   ];
-  const global = Extension2.create({ name: "pennedReadingAttributes", addGlobalAttributes: () => [{
-    types: ["paragraph", "heading", "blockquote", "callout", "plainCallout", "toggleItem", "table", "attachment", "inlineProperty", "templateComponent", "publishedPage", "publishedCollection"],
+  const global = Extension3.create({ name: "pennedReadingAttributes", addGlobalAttributes: () => [{
+    types: ["paragraph", "caption", "heading", "blockquote", "callout", "gridCard", "plainCallout", "toggleItem", "table", "attachment", "inlineProperty", "templateComponent", "publishedPage", "publishedCollection"],
     attributes: {
       readerAnchor: { default: null, renderHTML: (attrs) => attrs.readerAnchor ? { id: attrs.readerAnchor } : {} },
       textAlign: { default: null, renderHTML: (attrs) => ["left", "center", "right", "justify"].includes(attrs.textAlign) ? { "data-vellix-align": attrs.textAlign } : {} },
@@ -20619,6 +21834,7 @@ function publicExtensions(options) {
   return [
     StarterKit.configure({
       document: false,
+      heading: false,
       blockquote: false,
       horizontalRule: false,
       code: false,
@@ -20627,7 +21843,12 @@ function publicExtensions(options) {
       gapcursor: false,
       link: { openOnClick: true, HTMLAttributes: { target: "_blank", rel: "noopener noreferrer" } }
     }),
-    Node.create({ name: "doc", topNode: true, content: "block*" }),
+    createLabelHeading({ iconMask: (name) => {
+      const source = options.iconURL(name);
+      return source ? `url(${JSON.stringify(source)})` : null;
+    } }),
+    Node4.create({ name: "doc", topNode: true, content: "block*" }),
+    Caption,
     Code.extend({ excludes: "" }),
     textStyle,
     global,
@@ -20638,7 +21859,7 @@ function publicExtensions(options) {
 function renderPublicContent(document2, options) {
   const root = structuredClone(document2.content), toc = [];
   let count = 0;
-  function headings(node, depth) {
+  function headings(node, depth, inSource = false) {
     if (++count > 2e4 || depth > 64) throw new Error("Publication content exceeds its limits");
     const section = node.type === "publishedCollection" ? node.attrs?.projection?.name : node.type === "publishedPage" ? node.attrs?.preview?.title : node.type === "table" ? node.attrs?.name : null;
     if (node.type === "heading" || typeof section === "string" && section.trim()) {
@@ -20648,7 +21869,32 @@ function renderPublicContent(document2, options) {
       if (node.type === "publishedPage") node.attrs.preview.readerAnchor = id;
       toc.push({ id, level: node.attrs.level || 1, text: section || text(node) });
     }
-    for (const child of node.content || []) headings(child, depth + 1);
+    if (inSource && node.type === "inlineProperty") node.attrs = { ...node.attrs, readerClipSaved: true };
+    if (node.type === "tabs") {
+      const panels = (node.content || []).filter((child) => child.type === "tabPanel");
+      const activeId = panels.some((p) => p.attrs && p.attrs.id === node.attrs?.activeTab) ? node.attrs.activeTab : panels[0]?.attrs?.id ?? null;
+      for (const panel of panels) panel.attrs = { ...panel.attrs || {}, readerActive: panel.attrs?.id === activeId };
+    }
+    if (node.type === "minimalFields") {
+      const mf = node.attrs || {};
+      const records = (node.content || []).filter((child) => child.type === "minimalRecord");
+      records.forEach((record, index) => {
+        record.attrs = { ...record.attrs || {}, mf, mfFirst: index === 0 };
+        for (const child of record.content || []) {
+          if (child.type === "minimalRecordTitle") child.attrs = { ...child.attrs || {}, mf };
+          else if (child.type === "minimalField") {
+            child.attrs = { ...child.attrs || {}, mf };
+            for (const inner of child.content || []) {
+              if (inner.type === "minimalFieldLabel" || inner.type === "minimalFieldValue") {
+                inner.attrs = { ...inner.attrs || {}, mf };
+              }
+            }
+          }
+        }
+      });
+    }
+    const source = node.type === "plainCallout" && !!clipSource(node.attrs?.clipSource);
+    for (const child of node.content || []) headings(child, depth + 1, source);
   }
   headings(root, 0);
   tablePresentation(root);

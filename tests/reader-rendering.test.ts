@@ -35,6 +35,27 @@ test("the actual editor serializer renders formatting, unique contents anchors, 
   assert.match(result.segments[1], /linear-gradient\(90deg,\s*#BC76FF,\s*#FF7AB6\)/);
   assert.equal(doc.querySelectorAll("[contenteditable],script,[onclick]").length, 0);
 });
+
+test("published label headings keep their levels, contents anchors, visual settings and icon", () => {
+  const label = { presentation: "label", shape: "ribbon", style: "glass", font: "serif", alignment: "right",
+    textColor: "#281B36", backgroundColor: "#D9C3F1", borderColor: "#9E7EBC", accentColor: "#8966A8",
+    iconEnabled: true, icon: "sf:star.fill", iconColor: "#60437D" };
+  const result = render([1, 2, 3, 4, 5].map(level => ({
+    type: "heading", attrs: { level, label }, content: [{ type: "text", text: "Section " + level }],
+  })));
+  const dom = document(result.segments.join(""));
+  for (let level = 1; level <= 4; level++) {
+    const element = dom.querySelector(`h${level}.penned-heading-label`)!;
+    assert.equal(element.id, result.toc[level - 1].id);
+    assert.equal(element.textContent, "Section " + level);
+    assert.equal(element.getAttribute("data-label-shape"), "ribbon");
+    assert.equal(element.getAttribute("data-label-style"), "glass");
+    assert.match(element.getAttribute("style")!, /sf%3Astar.fill/);
+    assert(element.querySelector(".penned-label-icon[aria-hidden=true]"));
+    assert.equal(element.querySelector("[contenteditable]"), null);
+  }
+  assert.equal(dom.querySelector("h5")?.classList.contains("penned-heading-label"), false);
+});
 test("tables use the real formula engine, saved widths, spans, colors and number formatting", () => {
   const cell = (value: string, attrs = {}) => ({ type: "tableCell", attrs: { colspan: 1, rowspan: 1, colwidth: [150], ...attrs }, content: [paragraph(value)] });
   const result = render([{ type: "table", attrs: { name: "Values", stripeColor: "#abcdef" }, content: [

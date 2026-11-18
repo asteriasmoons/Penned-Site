@@ -1,6 +1,10 @@
 import { createReaderNavigation } from "./reader-navigation";
 import "../../vendor/penned-reader/text-gradient-paint.js";
 
+const scallopedLabels = import.meta.glob<{ observeScallopedLabels(root: Element): () => void }>(
+  "../../vendor/penned-reader/scalloped-label.js",
+);
+
 // Keep the access handler in this external entry: Astro inlines small component
 // scripts in production, which the reader's strict script-src policy rejects.
 const navigation = createReaderNavigation(() => {
@@ -44,6 +48,12 @@ function initializeReader(root: HTMLBodyElement) {
   const gradientPaint = (globalThis as unknown as { PennedTextGradientPainter?: { create(root: Element): { destroy(): void } } })
     .PennedTextGradientPainter?.create(document.querySelector(".reader-document") || root);
   if (gradientPaint) cleanup.push(() => gradientPaint.destroy());
+  const loadScallopedLabels = scallopedLabels["../../vendor/penned-reader/scalloped-label.js"];
+  if (loadScallopedLabels && root.querySelector('[data-label-perimeter], [data-label-shape="scalloped"]')) {
+    void loadScallopedLabels().then(({ observeScallopedLabels }) => {
+      if (!lifetime.signal.aborted) cleanup.push(observeScallopedLabels(root));
+    }).catch(error => console.error("Could not initialize label perimeters", error));
+  }
   const collections = [...document.querySelectorAll<HTMLElement>(".reader-collection")];
   function updateGalleryFade(viewport: HTMLElement) {
     viewport.style.setProperty("--gallery-start-opacity", viewport.scrollTop > 1 ? "0" : "1");
